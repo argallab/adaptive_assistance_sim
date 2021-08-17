@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+
+<launch>
+
+	<arg name="save" default="false" doc="Set to true if you wanted save bag file of trial"/>
+
+  <!-- record bags -->
+  <!-- bag file name parameters -->
+  <arg name="subject_id" default="test" doc="trial identifier string"/>
+  <group if="$(arg save)">
+    <include file="$(find simulators)/launch/record.launch">
+      <arg name="bag_prefix" value="$(arg subject_id)_p_ui_given_a"/>
+    </include>    
+  </group>
+
+	<arg name="iteration" default="1" doc="Number of times to display each action within a block"/>
+	<arg name="block" default="1" doc="Number of blocks"/>
+
+	<node pkg="simulators" output="screen" type="p_ui_given_a_simulator.py" name="p_ui_given_a_simulator" args="$(arg iteration) $(arg block)"/>
+
+</launch>

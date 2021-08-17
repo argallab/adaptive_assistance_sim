@@ -1,0 +1,7 @@
+Header header
+float64[] robot_continuous_position
+float64 robot_continuous_orientation
+float64[] robot_linear_velocity
+float64 robot_angular_velocity
+float64 robot_gripper_angle
+DiscreteState4D robot_discrete_state

@@ -1,0 +1,4 @@
+---
+string optimal_high_level_action #move_p, move_n, mode_r, mode_l
+string current_mode
+bool status

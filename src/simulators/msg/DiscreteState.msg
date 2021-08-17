@@ -1,0 +1,3 @@
+string discrete_location
+float64 discrete_orientation
+string mode

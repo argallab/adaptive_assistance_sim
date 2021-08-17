@@ -1,0 +1,6 @@
+# velocity limits for the jaco arm
+jaco_velocity_limits:
+  gripper_vel_limit: 2000
+  lin_vel_multiplier: 3
+  ang_vel_multiplier: 5
+  max_cart_vel_mulitplier: 0.3

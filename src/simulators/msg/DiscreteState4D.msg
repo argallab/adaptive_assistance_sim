@@ -1,0 +1,4 @@
+string discrete_location
+float64 discrete_orientation
+float64 discrete_gripper_angle
+string mode

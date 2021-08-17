@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+
+<launch>
+
+	<arg name="iteration" default="1" doc="Number of times to display each command"/>
+
+	<arg name="SNP" default="true" doc="Set to true if using sip/puff to control arm."/>
+
+	<node pkg="simulators" output="screen" type="sip_puff_training_simulator.py" name="sip_puff_training_simulator" args="$(arg iteration)"/>
+
+	<node pkg="rqt_reconfigure" type="rqt_reconfigure" name="training_prompt"/>
+
+	<node pkg="general_purpose" output="screen" type="keyboard_input_to_topic" name="keyboard_input_to_topic"/>
+
+	<include file="$(find teleop_nodes)/launch/teleop_nodes.launch">
+	<arg name="SNP" value="$(arg SNP)"/>
+	</include>
+
+
+</launch>
