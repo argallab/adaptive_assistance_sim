@@ -14,7 +14,7 @@ import os
 import rospkg
 
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
-from corrective_mode_switch_utils import AssistanceType
+from adaptive_assistance_sim_utils import AssistanceType
 
 npa = np.array
 
@@ -25,7 +25,7 @@ npa = np.array
 
 class SNPMapping(object):
 
-    """ data is a Float32Array message """
+    """data is a Float32Array message"""
 
     def __init__(self):
 
@@ -81,13 +81,13 @@ class SNPMapping(object):
         elif self.assistance_type == 2:
             self.assistance_type = AssistanceType.No_Assistance
 
-        rospy.loginfo("Waiting for goal_inference_and_correction node ")
-        rospy.wait_for_service("/goal_inference_and_correction/handle_inference_and_unintended_actions")
-        rospy.loginfo("Found goal_inference_and_correction")
+        # rospy.loginfo("Waiting for goal_inference_and_correction node ")
+        # rospy.wait_for_service("/goal_inference_and_correction/handle_inference_and_unintended_actions")
+        # rospy.loginfo("Found goal_inference_and_correction")
 
-        self.infer_and_correct_service = rospy.ServiceProxy(
-            "/goal_inference_and_correction/handle_inference_and_unintended_actions", GoalInferModify
-        )
+        # self.infer_and_correct_service = rospy.ServiceProxy(
+        #     "/goal_inference_and_correction/handle_inference_and_unintended_actions", GoalInferModify
+        # )
 
     # #######################################################################################
     #                           Check Sip and Puff Limits                                   #
@@ -132,24 +132,23 @@ class SNPMapping(object):
         self.before_send_msg.buttons = self.send_msg.buttons
         self.before_inference_pub.publish(self.before_send_msg)
 
-        self.update_assistance_type()
-        if (
-            self.assistance_type != AssistanceType.No_Assistance
-            and self.send_msg.header.frame_id != "Zero Band"
-            and self.send_msg.header.frame_id != "Soft-Hard Puff Deadband"
-            and self.send_msg.header.frame_id != "Soft-Hard Sip Deadband"
-            and self.send_msg.header.frame_id != "Input Stopped"
-        ):
-            request = GoalInferModifyRequest()
-            request.phm = self.send_msg.header.frame_id
-            response = self.infer_and_correct_service(request)
-            if response.ph_modified == "None":
-                self.send_msg.header.frame_id = "Zero Band"
-            else:
-                self.send_msg.header.frame_id = response.ph_modified
-            self.send_msg.buttons = np.zeros(4)
-            if self.send_msg.header.frame_id != "Zero Band":
-                self.send_msg.buttons[self.command_to_button_index_map[self.send_msg.header.frame_id]] = 1
+        # self.update_assistance_type()
+        # if (
+        #     self.send_msg.header.frame_id != "Zero Band"
+        #     and self.send_msg.header.frame_id != "Soft-Hard Puff Deadband"
+        #     and self.send_msg.header.frame_id != "Soft-Hard Sip Deadband"
+        #     and self.send_msg.header.frame_id != "Input Stopped"
+        # ):
+        #     request = GoalInferModifyRequest()
+        #     request.phm = self.send_msg.header.frame_id
+        #     response = self.infer_and_correct_service(request)
+        #     if response.ph_modified == "None":
+        #         self.send_msg.header.frame_id = "Zero Band"
+        #     else:
+        #         self.send_msg.header.frame_id = response.ph_modified
+        #     self.send_msg.buttons = np.zeros(4)
+        #     if self.send_msg.header.frame_id != "Zero Band":
+        #         self.send_msg.buttons[self.command_to_button_index_map[self.send_msg.header.frame_id]] = 1
 
         return 0
 
@@ -161,7 +160,7 @@ class SNPMapping(object):
     def joy_callback(self, msg):
         # Ignore the leadup to powerful blow that leads to mode switch (ONLY FOR SIP-PUFF SYSTEM, otherwise delete)
         # seems like thread issue if the number to ignore is too high
-        if (self._ignore_input_counter < self._num_inputs_to_ignore):  
+        if self._ignore_input_counter < self._num_inputs_to_ignore:
             self._ignore_input_counter += 1
 
         self.send_msg.header.stamp = rospy.Time.now()

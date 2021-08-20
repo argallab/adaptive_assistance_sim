@@ -11,7 +11,7 @@ import copy
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
 from generate_adaptive_assistance_trials import create_random_obstacles, create_random_goals, create_random_start_state
 from mdp.mdp_discrete_2d_gridworld_with_modes import MDPDiscrete2DGridWorldWithModes
-from envs.utils import *
+from adaptive_assistance_sim_utils import *
 import matplotlib.pyplot as plt
 from intent_inference.intent_inference_engine import IntentInference
 

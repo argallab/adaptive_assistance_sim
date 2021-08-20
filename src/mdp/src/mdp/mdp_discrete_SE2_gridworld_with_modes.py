@@ -1,5 +1,4 @@
 from os import stat
-from IPython.terminal.embed import embed
 import numpy as np
 import collections
 import itertools
@@ -45,7 +44,9 @@ class MDPDiscreteSE2GridWorldWithModes(DiscreteMDP):
         self.goal_reward = self.env_params["goal_reward"]
         self.num_discrete_orientations = self.env_params["num_discrete_orientations"]
 
-        self.orientations = [i * 2 * PI / self.num_discrete_orientations for i in range(self.num_discrete_orientations)]
+        self.orientations = [
+            i * 2 * PI / self.num_discrete_orientations for i in range(self.num_discrete_orientations)
+        ]
         self.orientations_index_dict = collections.OrderedDict()
         for i, orientation in enumerate(self.orientations):
             self.orientations_index_dict[i] = orientation

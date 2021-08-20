@@ -9,7 +9,7 @@ from sensor_msgs.msg import Joy
 from envs.continuous_world_SE2_env import ContinuousWorldSE2Env
 from std_msgs.msg import Float32MultiArray
 from std_msgs.msg import MultiArrayDimension, String, Int8
-from teleop_nodes.msg import CartVelCmd
+from teleop_nodes.msg import CartVelCmd, InterfaceSignal
 from simulators.msg import State
 from simulators.srv import InitBelief, InitBeliefRequest, InitBeliefResponse
 from teleop_nodes.srv import SetMode, SetModeRequest, SetModeResponse
@@ -24,7 +24,7 @@ import os
 import copy
 import itertools
 from mdp.mdp_utils import *
-from corrective_mode_switch_utils import (
+from adaptive_assistance_sim_utils import (
     MODE_INDEX_TO_DIM,
     SCALE,
     DIM_TO_MODE_INDEX,
@@ -59,20 +59,21 @@ class Simulator(object):
 
         self.robot_state = State()
         self.dim = 3
-        user_vel = CartVelCmd()
+        user_vel = InterfaceSignal()
+        # user_vel = CartVelCmd()
 
-        _dim = [MultiArrayDimension()]
-        _dim[0].label = "cartesian_velocity"
-        _dim[0].size = self.dim
-        _dim[0].stride = self.dim
-        user_vel.velocity.layout.dim = _dim
-        user_vel.velocity.data = np.zeros(self.dim)
-        user_vel.header.stamp = rospy.Time.now()
-        user_vel.header.frame_id = "human_control"
+        # _dim = [MultiArrayDimension()]
+        # _dim[0].label = "cartesian_velocity"
+        # _dim[0].size = self.dim
+        # _dim[0].stride = self.dim
+        # user_vel.velocity.layout.dim = _dim
+        # user_vel.velocity.data = np.zeros(self.dim)
+        # user_vel.header.stamp = rospy.Time.now()
+        # user_vel.header.frame_id = "human_control"
 
         self.input_action = {}
         self.input_action["human"] = user_vel
-        rospy.Subscriber("/user_vel", CartVelCmd, self.joy_callback)
+        rospy.Subscriber("/user_vel", InterfaceSignal, self.joy_callback)
         self.trial_index = 0
 
         self.env_params = None
@@ -225,7 +226,15 @@ class Simulator(object):
                         else:
                             self.shutdown_hook("Reached end of training")
                             break
-
+                #How to initiate the nudge? 
+                # Righthere we have access to human action uh.  
+                #keep track of a counter for non-zero uh? Should we try to have access to phm as well? 
+                # compute blended control 
+                # a. Have separate node for blending towards inferred goals? 
+                # b. The node will query the inference node for p(g|phm). Compute gmax. Reinit the pfield to have gmax as goal.
+                # Reinit other goals as obstacles? Or have N different pfields like in MICO
+                # c. Will use pfield for autonomy vel. 
+                # d. Do linear blending. 
                 if self.restart:
                     pass
 

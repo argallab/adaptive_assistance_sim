@@ -6,7 +6,7 @@ import os
 import rospkg
 
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
-from corrective_mode_switch_utils import *
+from adaptive_assistance_sim_utils import *
 import numpy as np
 import collections
 import itertools
@@ -66,7 +66,6 @@ class ContinuousWorldSE2Env(object):
             # optimal action to take in current state for goal g. Used to modify phm in inference node
             optimal_action_s_g.append(mdp_g.get_optimal_action(current_discrete_mdp_state, return_optimal=True))
 
-        
         response.p_a_s_all_g = p_a_s_all_g
         response.optimal_action_s_g = optimal_action_s_g
         response.status = True
@@ -408,7 +407,12 @@ class ContinuousWorldSE2Env(object):
 
         y_lb = self.world_bounds["yrange"]["lb"] + ROBOT_RADIUS / SCALE
         y_ub = self.world_bounds["yrange"]["ub"] - ROBOT_RADIUS / SCALE
-        if robot_position[0] < x_lb or robot_position[0] > x_ub or robot_position[1] < y_lb or robot_position[1] > y_ub:
+        if (
+            robot_position[0] < x_lb
+            or robot_position[0] > x_ub
+            or robot_position[1] < y_lb
+            or robot_position[1] > y_ub
+        ):
             return False
         else:
             return True
@@ -464,9 +468,8 @@ class ContinuousWorldSE2Env(object):
         # user_vel[np.setdiff1d(self.DIMENSION_INDICES, current_allowed_mode_index)] = 0.0
 
         self.robot.robot.linearVelocity = b2Vec2(user_vel[0], user_vel[1])  # update robot velocity
-        self.robot.robot.angularVelocity = -user_vel[
-            2
-        ]  # the negative sign is included so that 'move_p' which is "positive direction"
+        # the negative sign is included so that 'move_p' which is "positive direction"
+        self.robot.robot.angularVelocity = -user_vel[2]
         # results in clockwise motion! In degrees this is a negative change.
 
         self.world.Step(1.0 / FPS, VELOCITY_ITERATIONS, POSITION_ITERATIONS)  # call box2D step function

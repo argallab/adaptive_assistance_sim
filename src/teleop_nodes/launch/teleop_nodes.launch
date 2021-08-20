@@ -9,13 +9,14 @@
 	<arg name="CHIN_PORT" default="/dev/chin_switch_arduino" />
 	<arg name="robot_dim" default="3"/>
 	<arg name="finger_dim" default="1"/>
+	<arg name="interface_velocity_dim" default="1"/>
 
 	<rosparam param="snp_velocity_scale">13</rosparam>
 	<rosparam param="mode_switch_paradigm">2</rosparam>
 	<rosparam param="interface_dim">1</rosparam>
 
 	<!-- Sip and PUff -->
-	<group if="$(arg SNP)">
+	<!-- <group if="$(arg SNP)">
 		<rosparam command="load" file="$(find teleop_nodes)/config/sip_and_puff_mapping.yaml" />
 		<rosparam command="load" file="$(find teleop_nodes)/config/velocity_limits.yaml" />
 		<node pkg="joy" type="joy_node" name="joy_node_snp">
@@ -23,6 +24,19 @@
 		</node>
 		<node pkg="teleop_nodes" type="sip_puff_mapping.py" name="sip_puff_mapping" output="screen"/>
 		<node pkg="teleop_nodes" type="sip_and_puff_node.py" name="sip_and_puff_node" output="screen" args="$(arg robot_dim) $(arg finger_dim)">
+			<param name="snp_paradigm" value="$(find teleop_nodes)/cfg/SipPuffModeSwitchParadigm.cfg"/>
+		</node> -->
+	<!--<node pkg="rosserial_python" name="chin_button_arduino" type="serial_node.py" args="$(arg CHIN_PORT)"/>-->
+	<!-- </group> -->
+	
+	<group if="$(arg SNP)">
+		<rosparam command="load" file="$(find teleop_nodes)/config/sip_and_puff_mapping.yaml" />
+		<rosparam command="load" file="$(find teleop_nodes)/config/velocity_limits.yaml" />
+		<node pkg="joy" type="joy_node" name="joy_node_snp">
+			<param name="dev" value="/dev/input/js0"/>
+		</node>
+		<node pkg="teleop_nodes" type="sip_puff_mapping.py" name="sip_puff_mapping" output="screen"/>
+		<node pkg="teleop_nodes" type="sip_and_puff_hybrid_signal.py" name="sip_and_puff_hybrid_signal" output="screen" args="$(arg interface_velocity_dim)">
 			<param name="snp_paradigm" value="$(find teleop_nodes)/cfg/SipPuffModeSwitchParadigm.cfg"/>
 		</node>
 	<!--<node pkg="rosserial_python" name="chin_button_arduino" type="serial_node.py" args="$(arg CHIN_PORT)"/>-->

@@ -60,6 +60,7 @@ add_message_files(
   FILES
   CartVelCmd.msg
   ModeSwitch.msg
+  InterfaceSignal.msg
 )
 
 ## Generate services in the 'srv' folder

@@ -348,8 +348,8 @@ class MDPDiscrete2DGridWorldWithModes(DiscreteMDP):
         current_state = state_coord
         for t in range(horizon):
             current_random_action = self.get_random_action()
-            next_state_coord, _ = tuple(self._transition(current_state_coord, current_random_action))
-            sas_trajectory.append((current_state_coord, current_random_action, next_state_coord))
+            next_state_coord, _ = tuple(self._transition(current_state, current_random_action))
+            sas_trajectory.append((current_state, current_random_action, next_state_coord))
             if self.check_if_state_coord_is_goal_state(next_state_coord):
                 break
             current_state = next_state_coord
