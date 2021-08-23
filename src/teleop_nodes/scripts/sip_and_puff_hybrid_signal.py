@@ -29,6 +29,7 @@ class SNPInput(HybridControlInput):
 
         self.mode_switch_paradigm = 2  # two-way mode switching
         self.motion_paradigm = 3  # constant velocity paradigm
+        self._lock_input = True  # to prevent constant mode switching
 
         self.velocity_scale = rospy.get_param("/snp_velocity_scale")
         self._vel_multiplier = self.velocity_scale * np.ones(self.interface_velocity_dim) * 1
@@ -45,6 +46,7 @@ class SNPInput(HybridControlInput):
 
     def _handle_mode_switch_action(self, msg):
         switch = False
+
         if self.mode_switch_paradigm == 1:
             if msg.buttons[0] or msg.buttons[3]:
                 self.send_msg.mode_switch_action = "to_mode_r"
@@ -57,9 +59,6 @@ class SNPInput(HybridControlInput):
             elif msg.buttons[3]:
                 self.send_msg.mode_switch_action = "to_mode_l"
                 switch = True
-            else:
-                self.send_msg.mode_switch_action = "None"
-                switch = False
 
         if switch:
             self._lock_input = True
@@ -87,11 +86,14 @@ class SNPInput(HybridControlInput):
 
     # the main function, determines velocities to send to robot
     def receive(self, msg):
+        self.send_msg.mode_switch_action = "None"
         if msg.header.frame_id == "input stopped":
             self._lock_input = False
         if not self._lock_input:
             self.handle_paradigms(msg)
             self.handle_threading()
+            if self.send_msg.mode_switch_action != "None":
+                print(self.send_msg.mode_switch_action)
 
     # function required from abstract in control_input
     def getDefaultData(self):
