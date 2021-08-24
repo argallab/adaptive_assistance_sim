@@ -33,7 +33,7 @@ class HybridControlInput(object):
         :param rostopic: name of rostopic to update, ``str``
         """
 
-        self.pub = rospy.Publisher(rostopic, InterfaceSignal, queue_size=1)
+        self.pub = rospy.Publisher(rostopic, InterfaceSignal, queue_size=5)
         # self.pub = rospy.Publisher(rostopic, PoseVelocity, queue_size=1)
         self.send_thread = threading.Thread(target=self._send, args=(period,))
         self.send_thread.start()

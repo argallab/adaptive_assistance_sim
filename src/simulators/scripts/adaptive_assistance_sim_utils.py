@@ -213,8 +213,8 @@ class StartDirection(Enum):
 
 class RGOrient(Enum):
     """
-	Relative position of the goal with respect to the robot. This information is used for constructing properly shared paths in ModeInferenceEnv
-	"""
+    Relative position of the goal with respect to the robot. This information is used for constructing properly shared paths in ModeInferenceEnv
+    """
 
     TOP_RIGHT = 0
     TOP_LEFT = 1
@@ -259,11 +259,55 @@ TRANSITION_FOR_ACTION_4D = {
         "Soft Sip": {"x": "next", "y": "next", "t": "next", "gr": "prev"},
     },
 }
+
+# note: The RobotType determines the "max" dim number that will show up in ANY of the dict values.
+# THe ModeSetType will be determine the max "length" of the value string.
+CARTESIAN_MODE_SET_OPTIONS = {
+    CartesianRobotType.R2: {ModeSetType.OneD: {1: 1, 2: 2}, ModeSetType.TwoD: {1: 12}},
+    CartesianRobotType.SE2_NH: {ModeSetType.OneD: {1: 1, 2: 2}, ModeSetType.TwoD: {1: 12}},
+    CartesianRobotType.R3: {
+        ModeSetType.OneD: {1: 1, 2: 2, 3: 3},
+        ModeSetType.TwoD: {1: 12, 2: 23, 3: 13},
+        ModeSetType.ThreeD: {1: 123},
+    },
+    CartesianRobotType.SE2: {
+        ModeSetType.OneD: {1: 1, 2: 2, 3: 3},
+        ModeSetType.TwoD: {1: 12, 2: 3},
+        ModeSetType.ThreeD: {1: 123},
+    },
+    CartesianRobotType.SE3: {},
+}
+
+CARTESIAN_DIM_NAMES = {
+    CartesianRobotType.R2: ["X", "Y"],
+    CartesianRobotType.SE2_NH: ["V", "W"],
+    CartesianRobotType.R3: ["X", "Y", "Z"],
+    CartesianRobotType.SE2: ["X", "Y", "YAW"],
+    CartesianRobotType.SE3: ["X", "Y", "Z", "ROLL", "PITCH", "YAW"],
+}
+
+CARTESIAN_DIM_LABELS = {
+    CartesianRobotType.R2: {"X": "L/R", "Y": "F/B"},
+    CartesianRobotType.SE2_NH: {"V": "F/B", "W": "L/R"},
+    CartesianRobotType.R3: {"X": "L/R", "Y": "F/B", "Z": "U/D"},
+    CartesianRobotType.SE2: {"X": "L/R", "Y": "F/B", "YAW": "YAW"},
+    CartesianRobotType.SE3: {"X": "L/R", "Y": "F/B", "Z": "U/D", "ROLL": "ROLL", "PITCH": "PITCH", "YAW": "YAW"},
+}
+
+CARTESIAN_DIM_TO_CTRL_INDEX_MAP = {
+    CartesianRobotType.R2: {"X": 0, "Y": 1},
+    CartesianRobotType.SE2_NH: {"V": 0, "W": 1},
+    CartesianRobotType.R3: {"X": 0, "Y": 1, "Z": 2},
+    CartesianRobotType.SE2: {"X": 0, "Y": 1, "YAW": 2},
+    CartesianRobotType.SE3: {"X": 0, "Y": 1, "Z": 2, "ROLL": 3, "PITCH": 4, "YAW": 5},
+}
+
+
 # utility functions
 def get_sign_of_number(x):
     """
-	Utility function for getting the sign of a scalar. +1 for positive, -1 for negative
-	"""
+    Utility function for getting the sign of a scalar. +1 for positive, -1 for negative
+    """
     if int(x >= 0):
         return 1.0
     else:
@@ -278,26 +322,35 @@ class Robot2D(object):
 
 
 class RobotSE2(object):
-    def __init__(self, world, position, orientation, robot_color=(1.0, 0.0, 0.0), radius=3, type="kinematic"):
+    def __init__(
+        self,
+        world,
+        position,
+        orientation,
+        init_control_mode=0,
+        robot_color=(0.0, 0.0, 1.0),
+        radius=10,
+        robot_type=CartesianRobotType.SE2,
+        mode_set_type=ModeSetType.OneD,
+        mode_transition_type=ModeTransitionType.Forward_Backward,
+    ):
         self.robot = world.CreateKinematicBody(
             position=position, angle=orientation, shapes=[b2CircleShape(pos=position, radius=radius)]
         )
         self.robot_color = robot_color
         self.radius = radius
 
-    def set_robot_color(self, robot_color):
-        self.robot_color = robot_color
+        self.robot_type = robot_type
+        self.robot_dim = self.robot_type.value
+        self.mode_set_type = mode_set_type
+        self.mode_transition_type = mode_transition_type
 
-    # GETTERS
-    def get_direction_marker_end_points(self):
-        return (
-            (self.robot.position[0], self.robot.position[1]),
-            (
-                self.robot.position[0] + 2 * self.radius * math.cos(self.robot.angle),
-                self.robot.position[1] + 2 * self.radius * math.sin(self.robot.angle),
-            ),
-        )
+        # self.mode_set = {1:1, 2:2, 3:3}
+        self.mode_set = CARTESIAN_MODE_SET_OPTIONS[self.robot_type][self.mode_set_type]
+        self.num_modes = len(self.mode_set)
+        self.current_mode = init_control_mode  # 1,2,3 mode id. key in self.mode_set
 
+    # getters
     def get_position(self):
         return [self.robot.position[0], self.robot.position[1]]
 
@@ -310,12 +363,111 @@ class RobotSE2(object):
     def get_angular_velocity(self):
         return self.robot.angularVelocity
 
-    # Setters
+    def get_state(self):
+        return ((self.robot.position[0], self.robot.position[1], self.robot.angle), self.current_mode)
+
+    def get_current_allowed_dimensions(self):
+        # allows for mode sets in which each mode could have multiple active dimensions.
+        # mode display code can then just highlight all allowed dimensions
+        _allowed_control_dimensions = [int(cd) - 1 for cd in str(self.mode_set[self.current_mode])]
+        return _allowed_control_dimensions
+
+    def get_direction_marker_end_points(self):
+        return (self.robot.position[0], self.robot.position[1]), (
+            self.robot.position[0] + 2 * self.radius * math.cos(self.robot.angle),
+            self.robot.position[1] + 2 * self.radius * math.sin(self.robot.angle),
+        )
+
+    def get_current_mode(self):
+        return self.current_mode
+
+    # setters
     def set_position(self, position):
         self.robot.position = position
 
     def set_orientation(self, orientation):
         self.robot.angle = orientation
+
+    def set_mode(self, mode):
+        self.current_mode = mode
+
+    def set_robot_color(self, robot_color):
+        self.robot_color = robot_color
+
+    def _update_current_mode(self, mode_switch_action):
+        if self.mode_transition_type == ModeTransitionType.Forward_Backward:
+            # ignore None mode switch action
+            if mode_switch_action == "to_mode_l":
+                self.current_mode = self.current_mode - 1
+                if self.current_mode == 0:
+                    self.current_mode = self.num_modes
+            if mode_switch_action == "to_mode_r":
+                self.current_mode = self.current_mode + 1
+                if self.current_mode == self.num_modes + 1:
+                    self.current_mode = 1
+
+    def _mode_conditioned_velocity(self, velocity_action):
+        assert len(velocity_action) == self.mode_set_type.value  # dimensinality of the interface command
+        _allowed_control_dimensions = [int(cd) - 1 for cd in str(self.mode_set[self.current_mode])]
+        _all_control_dimensions = list(range(self.robot_dim))  # for velocity control
+        _disallowed_control_dimensions = list(set(_all_control_dimensions) - set(_allowed_control_dimensions))
+        _mappable_control_dimensions = list(range(self.mode_set_type.value))
+        assert len(_mappable_control_dimensions) >= len(_allowed_control_dimensions)
+        true_velocity = [0] * self.robot_dim
+        for acd, mcd in zip(_allowed_control_dimensions, _mappable_control_dimensions):
+            true_velocity[acd] = velocity_action[mcd]
+
+        return true_velocity
+
+    # transition
+    def step(self, action):
+        # print(action)
+        self._update_current_mode(action.mode_switch_action)
+        combined_velocity = self._mode_conditioned_velocity(action.interface_signal)
+        # print(combined_velocity)
+        self.robot.linearVelocity = [combined_velocity[0], combined_velocity[1]]
+        self.robot.angularVelocity = combined_velocity[2]
+
+
+# class RobotSE2(object):
+#     def __init__(self, world, position, orientation, robot_color=(1.0, 0.0, 0.0), radius=3, type="kinematic"):
+#         self.robot = world.CreateKinematicBody(
+#             position=position, angle=orientation, shapes=[b2CircleShape(pos=position, radius=radius)]
+#         )
+#         self.robot_color = robot_color
+#         self.radius = radius
+
+#     def set_robot_color(self, robot_color):
+#         self.robot_color = robot_color
+
+#     # GETTERS
+#     def get_direction_marker_end_points(self):
+#         return (
+#             (self.robot.position[0], self.robot.position[1]),
+#             (
+#                 self.robot.position[0] + 2 * self.radius * math.cos(self.robot.angle),
+#                 self.robot.position[1] + 2 * self.radius * math.sin(self.robot.angle),
+#             ),
+#         )
+
+#     def get_position(self):
+#         return [self.robot.position[0], self.robot.position[1]]
+
+#     def get_angle(self):
+#         return self.robot.angle
+
+#     def get_linear_velocity(self):
+#         return [self.robot.linearVelocity[0], self.robot.linearVelocity[1]]
+
+#     def get_angular_velocity(self):
+#         return self.robot.angularVelocity
+
+#     # Setters
+#     def set_position(self, position):
+#         self.robot.position = position
+
+#     def set_orientation(self, orientation):
+#         self.robot.angle = orientation
 
 
 class Robot4D(object):

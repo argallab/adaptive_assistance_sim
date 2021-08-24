@@ -50,6 +50,27 @@ class ContinuousWorldSE2Env(object):
         self.text_display_delay = 2
         self.start_msg_ind = 0
 
+    def get_prob_a_s_all_g(self, req):
+        response = PASAllGResponse()
+        current_discrete_mdp_state = rospy.get_param("current_discrete_mdp_state", [0, 0, 0, 1])
+        current_discrete_mdp_state = tuple(current_discrete_mdp_state)  # [x,y,t,m]
+        p_a_s_all_g = []
+        optimal_action_s_g = []
+        for g in range(self.num_goals):
+            mdp_g = self.mdp_list[g]
+            p_a_s_g_msg = PASSingleG()
+            p_a_s_g_msg.goal_id = g
+            for task_level_action in TASK_LEVEL_ACTIONS:
+                p_a_s_g_msg.p_a_s_g.append(mdp_g.get_prob_a_given_s(current_discrete_mdp_state, task_level_action))
+            p_a_s_all_g.append(p_a_s_g_msg)
+            # optimal action to take in current state for goal g. Used to modify phm in inference node
+            optimal_action_s_g.append(mdp_g.get_optimal_action(current_discrete_mdp_state, return_optimal=True))
+
+        response.p_a_s_all_g = p_a_s_all_g
+        response.optimal_action_s_g = optimal_action_s_g
+        response.status = True
+        return response
+
     def _continuous_orientation_to_discrete_orientation(self):
         cont_orientation = self.robot.get_angle()
         # wrap angle back to  0 to 2PI
@@ -73,14 +94,13 @@ class ContinuousWorldSE2Env(object):
         nearest_continuous_position = self.continuous_kd_tree.data[data_index, :]
         mdp_discrete_position = self.continuous_position_to_loc_coord[tuple(nearest_continuous_position)]
         mdp_discrete_orientation = self._continuous_orientation_to_discrete_orientation()
-        # current_mode_index = rospy.get_param("mode")  # 0,1,2
-        current_mode_index = self.robot.get_current_mode
+        current_mode_index = rospy.get_param("mode")  # 0,1,2
 
         mdp_discrete_state = [
             mdp_discrete_position[0],
             mdp_discrete_position[1],
             mdp_discrete_orientation,
-            current_mode_index,
+            current_mode_index + 1,  # plus 1 because in MDP the modes are 1-indexed.
         ]
         return mdp_discrete_state
 
@@ -134,19 +154,59 @@ class ContinuousWorldSE2Env(object):
                 t = Transform(translation=trans.position)
                 self.viewer.draw_circle(f.shape.radius, 30, color=self.robot.robot_color, filled=True).add_attr(t)
 
-    def _render_mode_switch_display(self):
-        allowed_control_dimensions = self.robot.get_current_allowed_dimensions()
-        for cd in range(self.robot_type.value):
-            position = self.LOCS_FOR_CONTROL_DIM_DISPLAY[cd]["position"]
-            t = Transform(translation=position)
-            if cd in allowed_control_dimensions:
+    def _render_robot_direction_indicators(self):
+        ep_markers = self.robot.get_direction_marker_end_points()
+        self.viewer.draw_line(ep_markers[0], ep_markers[1], linewidth=3.0)
+
+    def _render_mode_display(self):
+        for i, d in enumerate(self.DIMENSIONS):
+            if d == "y":
+                t = Transform(
+                    translation=(
+                        MODE_DISPLAY_CIRCLE_START_POSITION_S[0] + i * MODE_DISPLAY_CIRCLE_X_OFFSET_S,
+                        MODE_DISPLAY_CIRCLE_START_POSITION_S[1],
+                    )
+                )
+            else:
+                t = Transform(
+                    translation=(
+                        MODE_DISPLAY_CIRCLE_START_POSITION_S[0] + i * MODE_DISPLAY_CIRCLE_X_OFFSET_S,
+                        MODE_DISPLAY_CIRCLE_START_POSITION_S[1] - MODE_DISPLAY_CIRCLE_Y_OFFSET_S,
+                    )
+                )
+            if d == self.current_mode:
                 self.viewer.draw_circle(MODE_DISPLAY_RADIUS / SCALE, 30, True, color=ACTIVE_MODE_COLOR).add_attr(t)
             else:
                 self.viewer.draw_circle(MODE_DISPLAY_RADIUS / SCALE, 30, True, color=NONACTIVE_MODE_COLOR).add_attr(t)
 
-    def _render_robot_direction_indicators(self):
-        ep_markers = self.robot.get_direction_marker_end_points()
-        self.viewer.draw_line(ep_markers[0], ep_markers[1], linewidth=3.0)
+    def _render_mode_display_text(self):
+        """
+        Note that the coordinates of the text should in real pixels. Which is why here there is a multiplicative factor of SCALE.
+        """
+        self.viewer.draw_text(
+            "Horizontal",
+            x=MODE_DISPLAY_TEXT_START_POSITION[0],
+            y=MODE_DISPLAY_TEXT_START_POSITION[1] - MODE_DISPLAY_CIRCLE_Y_OFFSET_S * SCALE,
+            font_size=MODE_DISPLAY_TEXT_FONTSIZE,
+            color=MODE_DISPLAY_TEXT_COLOR,
+            anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
+        )
+        self.viewer.draw_text(
+            "Vertical",
+            x=MODE_DISPLAY_TEXT_START_POSITION[0] + MODE_DISPLAY_TEXT_X_OFFSET,
+            y=MODE_DISPLAY_TEXT_START_POSITION[1],
+            font_size=MODE_DISPLAY_TEXT_FONTSIZE,
+            color=MODE_DISPLAY_TEXT_COLOR,
+            anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
+        )
+        self.viewer.draw_text(
+            "Rotation",
+            x=MODE_DISPLAY_TEXT_START_POSITION[0] + 2 * MODE_DISPLAY_TEXT_X_OFFSET,
+            y=MODE_DISPLAY_TEXT_START_POSITION[1] - MODE_DISPLAY_CIRCLE_Y_OFFSET_S * SCALE,
+            font_size=MODE_DISPLAY_TEXT_FONTSIZE,
+            color=MODE_DISPLAY_TEXT_COLOR,
+            anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
+        )
 
     def _render_timer_text(self):
         if self.current_time < TIMER_WARNING_THRESHOLD:
@@ -198,16 +258,19 @@ class ContinuousWorldSE2Env(object):
             else:
                 rospy.loginfo("took more time")
 
-    def render(self):
+    def render(self, mode="human"):
         self._render_bounds()
         self._render_obstacles()
         self._render_goals()
-        self._render_robot()
-        self._render_mode_switch_display()
-        # draw robot direction indicator after the robot has been drawn.
-        self._render_robot_direction_indicators()
 
+        self._render_robot()
+        self._render_robot_direction_indicators()
+        self._render_mode_display()
+        self._render_mode_display_text()
+        # render timer
         self._render_timer_text()
+        # #render assistance block label
+        # self._render_text('Condition: '+self.assistance_type, LABEL_DISPLAY_POSITION, MODE_DISPLAY_TEXT_FONTSIZE+5)
 
         return self.viewer.render(False)
 
@@ -264,6 +327,7 @@ class ContinuousWorldSE2Env(object):
         # offset for bottom left corner.
         world_x_lb = self.world_bounds["xrange"]["lb"]
         world_y_lb = self.world_bounds["yrange"]["lb"]
+        cell_center_list = []
         data = np.zeros((grid_width * grid_height, 2))
         self.coord_to_continuous_position_dict = collections.OrderedDict()
         for i in range(grid_width):
@@ -295,7 +359,7 @@ class ContinuousWorldSE2Env(object):
         self.robot_position = self.env_params["robot_position"]
         self.robot_orientation = self.env_params["robot_orientation"]
         # starting discrete mode
-        self.start_mode = self.env_params["start_mode"]  # x,y,t,
+        self.start_mode = self.env_params["start_mode"]
 
         # continuous goal poses.
         self.goal_poses = self.env_params["goal_poses"]
@@ -303,9 +367,9 @@ class ContinuousWorldSE2Env(object):
         # continuous world boundaries
         self.world_bounds = self.env_params["world_bounds"]
         self._create_kd_tree_locations()
-
         # continuous obstacle boundaries.
         self.obstacles = self.env_params["obstacles"]
+        # self.assistance_type = ASSISTANCE_CODE_NAME[self.env_params["assistance_type"]]  # label assistance type
 
         self.DIMENSIONS = ["x", "y", "t"]  # set of dimensions or modes
         self.DIMENSION_INDICES = np.array([0, 1, 2])  # set of mode indices (needed for look up)
@@ -313,10 +377,15 @@ class ContinuousWorldSE2Env(object):
         self.current_mode_index = DIM_TO_MODE_INDEX[self.start_mode]  # 0,1,2
         self.current_mode = self.start_mode  # x,y,t
         self.mode_display_label = None
-        self.robot_type = self.env_params["robot_type"]
-        self.mode_set_type = self.env_params["mode_set_type"]
-        self.mode_transition_type = self.env_params["mode_transition_type"]
 
+        # create robot
+        # self.robot = RobotSE2(
+        #     self.world,
+        #     position=self.robot_position,
+        #     orientation=self.robot_orientation,
+        #     robot_color=ROBOT_COLOR_WHEN_COMMAND_REQUIRED,
+        #     radius=ROBOT_RADIUS / SCALE,
+        # )
         self.robot = RobotSE2(
             self.world,
             position=self.robot_position,
@@ -325,15 +394,19 @@ class ContinuousWorldSE2Env(object):
             init_control_mode=self.current_mode_index + 1,
             robot_type=self.robot_type,
             mode_set_type=self.mode_set_type,
-            mode_transition_type=self.mode_transition_type,
         )
-        self.LOCS_FOR_CONTROL_DIM_DISPLAY = collections.OrderedDict()
-        for i, cd in enumerate(range(self.robot_type.value)):
-            self.LOCS_FOR_CONTROL_DIM_DISPLAY[cd] = collections.OrderedDict()
-            self.LOCS_FOR_CONTROL_DIM_DISPLAY[cd]["position"] = (
-                MODE_DISPLAY_CIRCLE_START_POSITION_S[0] + i * MODE_DISPLAY_CIRCLE_X_OFFSET_S,
-                MODE_DISPLAY_CIRCLE_START_POSITION_S[1],
-            )
+
+        if not self.service_initialized:
+            rospy.Service("/sim_env/get_prob_a_s_all_g", PASAllG, self.get_prob_a_s_all_g)
+            self.service_initialized = True
+
+        # self.LOCS_FOR_CONTROL_DIM_DISPLAY = collections.OrderedDict()
+        # for i, cd in enumerate(range(self.robot_dim)):
+        #     self.LOCS_FOR_CONTROL_DIM_DISPLAY[cd] = collections.OrderedDict()
+        #     self.LOCS_FOR_CONTROL_DIM_DISPLAY[cd]["position"] = (
+        #         MODE_DISPLAY_CIRCLE_START_POSITION_S[0] + i * MODE_DISPLAY_CIRCLE_X_OFFSET_S,
+        #         MODE_DISPLAY_CIRCLE_START_POSITION_S[1],
+        #     )
 
     def _check_if_robot_in_bounds(self):
         robot_position = self.robot.get_position()
@@ -379,10 +452,36 @@ class ContinuousWorldSE2Env(object):
             return False
 
     def step(self, input_action):
-        prev_robot_position = self.robot.get_position()
+        assert "human" in input_action.keys()
+        # transform the continuous robot position to a discrete state representation.
+        # Easier for computing the optimal action etc
 
-        self.robot.step(input_action["full_control_signal"])
-        self.world.Step(1.0 / FPS, VELOCITY_ITERATIONS, POSITION_ITERATIONS)
+        # restrict the nonzero components of the velocity only to the allowed modes.
+        self.current_mode_index = rospy.get_param("mode")  # 0,1,2 #get current mode index
+        self.current_mode = MODE_INDEX_TO_DIM[self.current_mode_index]  # x,y,t, #get current mode
+
+        # x,y,t #for the given location, retrieve what is the allowed mode of motion.
+        # current_allowed_mode = self._retrieve_current_allowed_mode()
+        # 0,1,2 #get the mode index of the allowed mode of motion
+        # current_allowed_mode_index = DIM_TO_MODE_INDEX[current_allowed_mode]
+        prev_robot_position = self.robot.get_position()
+        user_vel = np.array(
+            [
+                input_action["human"].velocity.data[0],
+                input_action["human"].velocity.data[1],
+                input_action["human"].velocity.data[2],
+            ]
+        )  # numpyify the velocity data. note the negative sign on the 3rd component.To account for proper counterclockwise motion
+        # zero out all velocities except the ones for the allowed mode
+        # user_vel[np.setdiff1d(self.DIMENSION_INDICES, current_allowed_mode_index)] = 0.0
+
+        self.robot.robot.linearVelocity = b2Vec2(user_vel[0], user_vel[1])  # update robot velocity
+        # the negative sign is included so that 'move_p' which is "positive direction"
+        self.robot.robot.angularVelocity = -user_vel[2]
+        # results in clockwise motion! In degrees this is a negative change.
+
+        self.world.Step(1.0 / FPS, VELOCITY_ITERATIONS, POSITION_ITERATIONS)  # call box2D step function
+
         if self._check_if_robot_in_obstacle():
             self.robot.set_position(prev_robot_position)
 
@@ -391,12 +490,13 @@ class ContinuousWorldSE2Env(object):
 
         self.current_discrete_mdp_state = self._transform_continuous_robot_pose_to_discrete_state()
         rospy.set_param("current_discrete_mdp_state", self.current_discrete_mdp_state)
+        # print("Discrete state", self.current_discrete_mdp_state)
 
         return (
             self.robot.get_position(),
             self.robot.get_angle(),
-            # [user_vel[0], user_vel[1]],
-            # -user_vel[2],
-            # self.current_mode,
+            [user_vel[0], user_vel[1]],
+            -user_vel[2],
+            self.current_mode,
             False,
         )

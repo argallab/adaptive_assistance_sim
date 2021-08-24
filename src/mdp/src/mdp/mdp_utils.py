@@ -28,12 +28,12 @@ class ControlType(Enum):
     Joint = 1
 
 
-class CartesianRobotType(Enum):
-    R2 = 2  # (x,y)
-    SE2_NH = 2  # (v, w)
-    R3 = 3  # (x, y, z)
-    SE2 = 3  # (x,y,theta)
-    SE3 = 6  # (x,y,z,r,p,yaw)
+# class CartesianRobotType(Enum):
+#     R2 = 2  # (x,y)
+#     SE2_NH = 2  # (v, w)
+#     R3 = 3  # (x, y, z)
+#     SE2 = 3  # (x,y,theta)
+#     SE3 = 6  # (x,y,z,r,p,yaw)
 
 
 class JointRobotType(Enum):
@@ -65,10 +65,10 @@ class ControlIndicatorType(Enum):
     Circle = 1
 
 
-class ModeSetType(Enum):
-    OneD = 1
-    TwoD = 2
-    ThreeD = 3
+# class ModeSetType(Enum):
+#     OneD = 1
+#     TwoD = 2
+#     ThreeD = 3
 
 
 class InterfaceType(Enum):
@@ -77,11 +77,11 @@ class InterfaceType(Enum):
     HA = 2
 
 
-class ModeTransitionType(Enum):
-    Direct = 0
-    Forward = 1
-    Backward = 2
-    Forward_Backward = 3
+# class ModeTransitionType(Enum):
+#     Direct = 0
+#     Forward = 1
+#     Backward = 2
+#     Forward_Backward = 3
 
 
 class WorldType(Enum):
@@ -98,129 +98,129 @@ class TransitionType(Enum):
 
 # note: The RobotType determines the "max" dim number that will show up in ANY of the dict values.
 # THe ModeSetType will be determine the max "length" of the value string.
-CARTESIAN_MODE_SET_OPTIONS = {
-    CartesianRobotType.R2: {ModeSetType.OneD: {1: 1, 2: 2}, ModeSetType.TwoD: {1: 12}},
-    CartesianRobotType.SE2_NH: {ModeSetType.OneD: {1: 1, 2: 2}, ModeSetType.TwoD: {1: 12}},
-    CartesianRobotType.R3: {
-        ModeSetType.OneD: {1: 1, 2: 2, 3: 3},
-        ModeSetType.TwoD: {1: 12, 2: 23, 3: 13},
-        ModeSetType.ThreeD: {1: 123},
-    },
-    CartesianRobotType.SE2: {
-        ModeSetType.OneD: {1: 1, 2: 2, 3: 3},
-        ModeSetType.TwoD: {1: 12, 2: 3},
-        ModeSetType.ThreeD: {1: 123},
-    },
-    CartesianRobotType.SE3: {},
-}
+# CARTESIAN_MODE_SET_OPTIONS = {
+#     CartesianRobotType.R2: {ModeSetType.OneD: {1: 1, 2: 2}, ModeSetType.TwoD: {1: 12}},
+#     CartesianRobotType.SE2_NH: {ModeSetType.OneD: {1: 1, 2: 2}, ModeSetType.TwoD: {1: 12}},
+#     CartesianRobotType.R3: {
+#         ModeSetType.OneD: {1: 1, 2: 2, 3: 3},
+#         ModeSetType.TwoD: {1: 12, 2: 23, 3: 13},
+#         ModeSetType.ThreeD: {1: 123},
+#     },
+#     CartesianRobotType.SE2: {
+#         ModeSetType.OneD: {1: 1, 2: 2, 3: 3},
+#         ModeSetType.TwoD: {1: 12, 2: 3},
+#         ModeSetType.ThreeD: {1: 123},
+#     },
+#     CartesianRobotType.SE3: {},
+# }
 
-CARTESIAN_DIM_NAMES = {
-    CartesianRobotType.R2: ["X", "Y"],
-    CartesianRobotType.SE2_NH: ["V", "W"],
-    CartesianRobotType.R3: ["X", "Y", "Z"],
-    CartesianRobotType.SE2: ["X", "Y", "YAW"],
-    CartesianRobotType.SE3: ["X", "Y", "Z", "ROLL", "PITCH", "YAW"],
-}
+# CARTESIAN_DIM_NAMES = {
+#     CartesianRobotType.R2: ["X", "Y"],
+#     CartesianRobotType.SE2_NH: ["V", "W"],
+#     CartesianRobotType.R3: ["X", "Y", "Z"],
+#     CartesianRobotType.SE2: ["X", "Y", "YAW"],
+#     CartesianRobotType.SE3: ["X", "Y", "Z", "ROLL", "PITCH", "YAW"],
+# }
 
-CARTESIAN_DIM_LABELS = {
-    CartesianRobotType.R2: {"X": "L/R", "Y": "F/B"},
-    CartesianRobotType.SE2_NH: {"V": "F/B", "W": "L/R"},
-    CartesianRobotType.R3: {"X": "L/R", "Y": "F/B", "Z": "U/D"},
-    CartesianRobotType.SE2: {"X": "L/R", "Y": "F/B", "YAW": "YAW"},
-    CartesianRobotType.SE3: {"X": "L/R", "Y": "F/B", "Z": "U/D", "ROLL": "ROLL", "PITCH": "PITCH", "YAW": "YAW"},
-}
+# CARTESIAN_DIM_LABELS = {
+#     CartesianRobotType.R2: {"X": "L/R", "Y": "F/B"},
+#     CartesianRobotType.SE2_NH: {"V": "F/B", "W": "L/R"},
+#     CartesianRobotType.R3: {"X": "L/R", "Y": "F/B", "Z": "U/D"},
+#     CartesianRobotType.SE2: {"X": "L/R", "Y": "F/B", "YAW": "YAW"},
+#     CartesianRobotType.SE3: {"X": "L/R", "Y": "F/B", "Z": "U/D", "ROLL": "ROLL", "PITCH": "PITCH", "YAW": "YAW"},
+# }
 
-CARTESIAN_DIM_TO_CTRL_INDEX_MAP = {
-    CartesianRobotType.R2: {"X": 0, "Y": 1},
-    CartesianRobotType.SE2_NH: {"V": 0, "W": 1},
-    CartesianRobotType.R3: {"X": 0, "Y": 1, "Z": 2},
-    CartesianRobotType.SE2: {"X": 0, "Y": 1, "YAW": 2},
-    CartesianRobotType.SE3: {"X": 0, "Y": 1, "Z": 2, "ROLL": 3, "PITCH": 4, "YAW": 5},
-}
+# CARTESIAN_DIM_TO_CTRL_INDEX_MAP = {
+#     CartesianRobotType.R2: {"X": 0, "Y": 1},
+#     CartesianRobotType.SE2_NH: {"V": 0, "W": 1},
+#     CartesianRobotType.R3: {"X": 0, "Y": 1, "Z": 2},
+#     CartesianRobotType.SE2: {"X": 0, "Y": 1, "YAW": 2},
+#     CartesianRobotType.SE3: {"X": 0, "Y": 1, "Z": 2, "ROLL": 3, "PITCH": 4, "YAW": 5},
+# }
 
-CARTESIAN_DIM_INDICATOR_TYPES = {
-    CartesianRobotType.R2: {"X": ControlIndicatorType.Bar, "Y": ControlIndicatorType.Bar},
-    CartesianRobotType.SE2_NH: {"V": ControlIndicatorType.Bar, "W": ControlIndicatorType.Circle},
-    CartesianRobotType.R3: {
-        "X": ControlIndicatorType.Bar,
-        "Y": ControlIndicatorType.Bar,
-        "Z": ControlIndicatorType.Bar,
-    },
-    CartesianRobotType.SE2: {
-        "X": ControlIndicatorType.Bar,
-        "Y": ControlIndicatorType.Bar,
-        "YAW": ControlIndicatorType.Circle,
-    },
-    CartesianRobotType.SE3: {
-        "X": ControlIndicatorType.Bar,
-        "Y": ControlIndicatorType.Bar,
-        "Z": ControlIndicatorType.Bar,
-        "ROLL": ControlIndicatorType.Circle,
-        "PITCH": ControlIndicatorType.Circle,
-        "YAW": ControlIndicatorType.Circle,
-    },
-}
+# CARTESIAN_DIM_INDICATOR_TYPES = {
+#     CartesianRobotType.R2: {"X": ControlIndicatorType.Bar, "Y": ControlIndicatorType.Bar},
+#     CartesianRobotType.SE2_NH: {"V": ControlIndicatorType.Bar, "W": ControlIndicatorType.Circle},
+#     CartesianRobotType.R3: {
+#         "X": ControlIndicatorType.Bar,
+#         "Y": ControlIndicatorType.Bar,
+#         "Z": ControlIndicatorType.Bar,
+#     },
+#     CartesianRobotType.SE2: {
+#         "X": ControlIndicatorType.Bar,
+#         "Y": ControlIndicatorType.Bar,
+#         "YAW": ControlIndicatorType.Circle,
+#     },
+#     CartesianRobotType.SE3: {
+#         "X": ControlIndicatorType.Bar,
+#         "Y": ControlIndicatorType.Bar,
+#         "Z": ControlIndicatorType.Bar,
+#         "ROLL": ControlIndicatorType.Circle,
+#         "PITCH": ControlIndicatorType.Circle,
+#         "YAW": ControlIndicatorType.Circle,
+#     },
+# }
 
-# the following can be efficienctly created using loops
-JOINT_DIM_NAMES = {
-    JointRobotType.J1: ["J1"],
-    JointRobotType.J2: ["J1", "J2"],
-    JointRobotType.J3: ["J1", "J2", "J3"],
-    JointRobotType.J4: ["J1", "J2", "J3", "J4"],
-    JointRobotType.J5: ["J1", "J2", "J3", "J4", "J5"],
-    JointRobotType.J6: ["J1", "J2", "J3", "J4", "J5", "J6"],
-    JointRobotType.J7: ["J1", "J2", "J3", "J4", "J5", "J6", "J7"],
-}
+# # the following can be efficienctly created using loops
+# JOINT_DIM_NAMES = {
+#     JointRobotType.J1: ["J1"],
+#     JointRobotType.J2: ["J1", "J2"],
+#     JointRobotType.J3: ["J1", "J2", "J3"],
+#     JointRobotType.J4: ["J1", "J2", "J3", "J4"],
+#     JointRobotType.J5: ["J1", "J2", "J3", "J4", "J5"],
+#     JointRobotType.J6: ["J1", "J2", "J3", "J4", "J5", "J6"],
+#     JointRobotType.J7: ["J1", "J2", "J3", "J4", "J5", "J6", "J7"],
+# }
 
-JOINT_DIM_TO_CTRL_INDEX_MAP = {
-    JointRobotType.J1: {"J1": 0},
-    JointRobotType.J2: {"J1": 0, "J2": 1},
-    JointRobotType.J3: {"J1": 0, "J2": 1, "J3": 2},
-    JointRobotType.J4: {"J1": 0, "J2": 1, "J3": 2, "J4": 3},
-    JointRobotType.J5: {"J1": 0, "J2": 1, "J3": 2, "J4": 3, "J5": 4},
-    JointRobotType.J6: {"J1": 0, "J2": 1, "J3": 2, "J4": 3, "J5": 4, "J6": 5},
-    JointRobotType.J7: {"J1": 0, "J2": 1, "J3": 2, "J4": 3, "J5": 4, "J6": 5, "J7": 6},
-}
+# JOINT_DIM_TO_CTRL_INDEX_MAP = {
+#     JointRobotType.J1: {"J1": 0},
+#     JointRobotType.J2: {"J1": 0, "J2": 1},
+#     JointRobotType.J3: {"J1": 0, "J2": 1, "J3": 2},
+#     JointRobotType.J4: {"J1": 0, "J2": 1, "J3": 2, "J4": 3},
+#     JointRobotType.J5: {"J1": 0, "J2": 1, "J3": 2, "J4": 3, "J5": 4},
+#     JointRobotType.J6: {"J1": 0, "J2": 1, "J3": 2, "J4": 3, "J5": 4, "J6": 5},
+#     JointRobotType.J7: {"J1": 0, "J2": 1, "J3": 2, "J4": 3, "J5": 4, "J6": 5, "J7": 6},
+# }
 
-JOINT_DIM_INDICATOR_TYPES = {
-    JointRobotType.J1: {"J1": ControlIndicatorType.Circle},
-    JointRobotType.J2: {"J1": ControlIndicatorType.Circle, "J2": ControlIndicatorType.Circle},
-    JointRobotType.J3: {
-        "J1": ControlIndicatorType.Circle,
-        "J2": ControlIndicatorType.Circle,
-        "J3": ControlIndicatorType.Circle,
-    },
-    JointRobotType.J4: {
-        "J1": ControlIndicatorType.Circle,
-        "J2": ControlIndicatorType.Circle,
-        "J3": ControlIndicatorType.Circle,
-        "J4": ControlIndicatorType.Circle,
-    },
-    JointRobotType.J5: {
-        "J1": ControlIndicatorType.Circle,
-        "J2": ControlIndicatorType.Circle,
-        "J3": ControlIndicatorType.Circle,
-        "J4": ControlIndicatorType.Circle,
-        "J5": ControlIndicatorType.Circle,
-    },
-    JointRobotType.J6: {
-        "J1": ControlIndicatorType.Circle,
-        "J2": ControlIndicatorType.Circle,
-        "J3": ControlIndicatorType.Circle,
-        "J4": ControlIndicatorType.Circle,
-        "J5": ControlIndicatorType.Circle,
-        "J6": ControlIndicatorType.Circle,
-    },
-    JointRobotType.J7: {
-        "J1": ControlIndicatorType.Circle,
-        "J2": ControlIndicatorType.Circle,
-        "J3": ControlIndicatorType.Circle,
-        "J4": ControlIndicatorType.Circle,
-        "J5": ControlIndicatorType.Circle,
-        "J6": ControlIndicatorType.Circle,
-        "J7": ControlIndicatorType.Circle,
-    },
-}
+# JOINT_DIM_INDICATOR_TYPES = {
+#     JointRobotType.J1: {"J1": ControlIndicatorType.Circle},
+#     JointRobotType.J2: {"J1": ControlIndicatorType.Circle, "J2": ControlIndicatorType.Circle},
+#     JointRobotType.J3: {
+#         "J1": ControlIndicatorType.Circle,
+#         "J2": ControlIndicatorType.Circle,
+#         "J3": ControlIndicatorType.Circle,
+#     },
+#     JointRobotType.J4: {
+#         "J1": ControlIndicatorType.Circle,
+#         "J2": ControlIndicatorType.Circle,
+#         "J3": ControlIndicatorType.Circle,
+#         "J4": ControlIndicatorType.Circle,
+#     },
+#     JointRobotType.J5: {
+#         "J1": ControlIndicatorType.Circle,
+#         "J2": ControlIndicatorType.Circle,
+#         "J3": ControlIndicatorType.Circle,
+#         "J4": ControlIndicatorType.Circle,
+#         "J5": ControlIndicatorType.Circle,
+#     },
+#     JointRobotType.J6: {
+#         "J1": ControlIndicatorType.Circle,
+#         "J2": ControlIndicatorType.Circle,
+#         "J3": ControlIndicatorType.Circle,
+#         "J4": ControlIndicatorType.Circle,
+#         "J5": ControlIndicatorType.Circle,
+#         "J6": ControlIndicatorType.Circle,
+#     },
+#     JointRobotType.J7: {
+#         "J1": ControlIndicatorType.Circle,
+#         "J2": ControlIndicatorType.Circle,
+#         "J3": ControlIndicatorType.Circle,
+#         "J4": ControlIndicatorType.Circle,
+#         "J5": ControlIndicatorType.Circle,
+#         "J6": ControlIndicatorType.Circle,
+#         "J7": ControlIndicatorType.Circle,
+#     },
+# }
 
 START_DIST_THRESHOLD = 2
 INTER_GOAL_THRESHOLD = 2
@@ -279,7 +279,9 @@ def create_random_goals(width, height, num_goals, obstacle_list):
     random_goals.append(sampled_goal)  # add the first goal into the array.
     # print(random_goals)
     while len(random_goals) < num_goals:
-        sampled_goal = random.sample(list(set(all_cell_coords) - set(obstacle_list) - set(random_goals)), 1)[0]  # tuple
+        sampled_goal = random.sample(list(set(all_cell_coords) - set(obstacle_list) - set(random_goals)), 1)[
+            0
+        ]  # tuple
         dist_to_goals = [np.linalg.norm(np.array(sampled_goal) - np.array(g)) for g in random_goals]
         if min(dist_to_goals) > INTER_GOAL_THRESHOLD:
             random_goals.append(sampled_goal)

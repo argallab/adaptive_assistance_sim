@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# Code developed by Deepak Gopinath*, Mahdieh Nejati Javaremi* in February 2020. Copyright (c) 2020. Deepak Gopinath, Mahdieh Nejati Javaremi, Argallab. (*) Equal contribution
 
 import collections
 import rospy
@@ -7,7 +9,7 @@ from sensor_msgs.msg import Joy
 from envs.continuous_world_SE2_env import ContinuousWorldSE2Env
 from std_msgs.msg import Float32MultiArray
 from std_msgs.msg import MultiArrayDimension, String, Int8
-from teleop_nodes.msg import InterfaceSignal
+from teleop_nodes.msg import CartVelCmd, InterfaceSignal
 from simulators.msg import State
 from simulators.srv import InitBelief, InitBeliefRequest, InitBeliefResponse
 from teleop_nodes.srv import SetMode, SetModeRequest, SetModeResponse
@@ -22,7 +24,16 @@ import os
 import copy
 import itertools
 from mdp.mdp_utils import *
-from adaptive_assistance_sim_utils import *
+from adaptive_assistance_sim_utils import (
+    MODE_INDEX_TO_DIM,
+    SCALE,
+    DIM_TO_MODE_INDEX,
+    VIEWPORT_W,
+    VIEWPORT_H,
+    PI,
+    ROBOT_RADIUS_S,
+)
+
 
 GRID_WIDTH = 10
 GRID_HEIGHT = 10
@@ -49,9 +60,19 @@ class Simulator(object):
         self.robot_state = State()
         self.dim = 3
         user_vel = InterfaceSignal()
+        # user_vel = CartVelCmd()
+
+        # _dim = [MultiArrayDimension()]
+        # _dim[0].label = "cartesian_velocity"
+        # _dim[0].size = self.dim
+        # _dim[0].stride = self.dim
+        # user_vel.velocity.layout.dim = _dim
+        # user_vel.velocity.data = np.zeros(self.dim)
+        # user_vel.header.stamp = rospy.Time.now()
+        # user_vel.header.frame_id = "human_control"
 
         self.input_action = {}
-        self.input_action["full_control_signal"] = user_vel
+        self.input_action["human"] = user_vel
         rospy.Subscriber("/user_vel", InterfaceSignal, self.joy_callback)
         self.trial_index = 0
 
@@ -119,9 +140,7 @@ class Simulator(object):
                 self.env_params["robot_position"] = robot_position
                 self.env_params["robot_orientation"] = robot_orientation
                 self.env_params["start_mode"] = start_mode
-                self.env_params["robot_type"] = CartesianRobotType.SE2
-                self.env_params["mode_set_type"] = ModeSetType.OneD
-                self.env_params["mode_transition_type"] = ModeTransitionType.Forward_Backward
+
                 # generate continuous obstacle bounds based
                 self.env_params["obstacles"] = []
                 for o in mdp_env_params["original_mdp_obstacles"]:
@@ -142,13 +161,32 @@ class Simulator(object):
                 self.env_params['assistance_type'] = 1
             else:
                 pass
-        
+
+        rospy.set_param("assistance_type", self.env_params["assistance_type"])
+        rospy.loginfo("Waiting for teleop_node ")
+        rospy.wait_for_service("/teleop_node/set_mode")
+        rospy.loginfo("teleop_node node service found! ")
+
+        # set starting mode for the trial
+        self.set_mode_srv = rospy.ServiceProxy("/teleop_node/set_mode", SetMode)
+        self.set_mode_request = SetModeRequest()
+        self.set_mode_request.mode_index = DIM_TO_MODE_INDEX[self.env_params["start_mode"]]
+        status = self.set_mode_srv(self.set_mode_request)
+
+        rospy.loginfo("Waiting for inference node")
+        rospy.wait_for_service("/goal_inference_and_correction/init_belief")
+        rospy.loginfo("inference node service found! ")
+
+        self.init_belief_srv = rospy.ServiceProxy("/goal_inference_and_correction/init_belief", InitBelief)
+        self.init_belief_request = InitBeliefRequest()
+        self.init_belief_request.num_goals = self.env_params["num_goals"]
+        status = self.init_belief_srv(self.init_belief_request)
+
         # instantiate the environement
         self.env_params["start"] = False
         self.env = ContinuousWorldSE2Env(self.env_params)
         self.env.initialize()
         self.env.initialize_viewer()
-        self.env.reset()
         self.env.viewer.window.on_key_press = self.key_press
 
         r = rospy.Rate(100)
@@ -184,27 +222,48 @@ class Simulator(object):
                             if self.trial_index == 2:
                                 self.shutdown_hook("Reached end of trial list. End of session")
                                 break  # experiment is done
+
                         else:
                             self.shutdown_hook("Reached end of training")
                             break
-                
+                #How to initiate the nudge? 
+                # Righthere we have access to human action uh.  
+                #keep track of a counter for non-zero uh? Should we try to have access to phm as well? 
+                # compute blended control 
+                # a. Have separate node for blending towards inferred goals? 
+                # b. The node will query the inference node for p(g|phm). Compute gmax. Reinit the pfield to have gmax as goal.
+                # Reinit other goals as obstacles? Or have N different pfields like in MICO
+                # c. Will use pfield for autonomy vel. 
+                # d. Do linear blending. 
                 if self.restart:
                     pass
 
                 (
                     robot_continuous_position,
                     robot_continuous_orientation,
+                    robot_linear_velocity,
+                    robot_angular_velocity,
+                    robot_current_mode,
                     is_done,
                 ) = self.env.step(self.input_action)
 
+                self.robot_state.header.stamp = rospy.Time.now()
+                self.robot_state.robot_continuous_position = robot_continuous_position
+                self.robot_state.robot_continuous_orientation = robot_continuous_orientation
+                self.robot_state.robot_linear_velocity = robot_linear_velocity
+                self.robot_state.robot_angular_velocity = robot_angular_velocity
+
+                self.robot_state.robot_discrete_state.mode = robot_current_mode
+
+                self.robot_state_pub.publish(self.robot_state)
                 if self.terminate:
                     self.shutdown_hook("Session terminated")
                     break
 
                 self.env.render()
-            
+
             r.sleep()
-    
+
     def _generate_continuous_goal_poses(self, discrete_goal_list, cell_size, world_bounds):
         goal_poses = []
         for dg in discrete_goal_list:
@@ -226,19 +285,19 @@ class Simulator(object):
         x_coord = discrete_state[0]
         y_coord = discrete_state[1]
         theta_coord = discrete_state[2]
-        mode = discrete_state[3] - 1  # minus one because the dictionary is 0-indexed
+        mode = discrete_state[3] - 1  # minus one because the MODE_INDEX_TO_DIM is 0-indexed
 
         robot_position = [
             x_coord * cell_size + cell_size / 2.0 + world_bounds["xrange"]["lb"],
             y_coord * cell_size + cell_size / 2.0 + world_bounds["yrange"]["lb"],
         ]
         robot_orientation = (theta_coord * 2 * PI) / NUM_ORIENTATIONS
-        start_mode = MODE_INDEX_TO_DIM[mode]
+        start_mode = MODE_INDEX_TO_DIM[mode] #x,y,t
 
         return robot_position, robot_orientation, start_mode
 
     def joy_callback(self, msg):
-        self.input_action['full_control_signal'] = msg
+        self.input_action["human"] = msg
 
     def shutdown_hook(self, msg_string="DONE"):
         if not self.called_shutdown:
@@ -248,8 +307,7 @@ class Simulator(object):
             self.env.render_clear("End of trial...")
             self.env.close_window()
             print ("Shutting down")
-        
-    
+
     def key_press(self, k, mode):
         if k == key.SPACE:
             self.terminate = True
@@ -330,6 +388,7 @@ class Simulator(object):
             mdp_list.append(discrete_se2_modes_mdp)
 
         return mdp_list
+
 
 if __name__ == "__main__":
     subject_id = sys.argv[1]
