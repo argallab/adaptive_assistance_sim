@@ -58,6 +58,7 @@ add_service_files(
   FILES
   OptimalAction.srv
   PASAllG.srv
+  SwitchModeSrv.srv
 )
 
 ## Generate actions in the 'action' folder

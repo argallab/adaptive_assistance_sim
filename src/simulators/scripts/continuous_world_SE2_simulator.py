@@ -84,32 +84,31 @@ class Simulator(object):
         else:
             if not self.training:
                 mdp_env_params = self._create_mdp_env_param_dict()
-                mdp_env_params["cell_size"] = ROBOT_RADIUS_S * 2.1
+                mdp_env_params["cell_size"] = collections.OrderedDict()
 
                 # create mdp list here. Select start positoin from valid stats.
-                # pass mdp_list so that env doesn't waste time creating it.
-                self.env_params = dict()
-                self.env_params["all_mdp_env_params"] = mdp_env_params
                 # generate continuous world bounds from width and height and cell size, and offset info
                 world_bounds = collections.OrderedDict()
                 world_bounds["xrange"] = collections.OrderedDict()
                 world_bounds["yrange"] = collections.OrderedDict()
                 # bottom left corner in continuous space
-                world_bounds["xrange"]["lb"] = 0.1 * VIEWPORT_W / SCALE
-                world_bounds["yrange"]["lb"] = 0.1 * VIEWPORT_H / SCALE
-
-                world_bounds["xrange"]["ub"] = world_bounds["xrange"]["lb"] + (
-                    mdp_env_params["grid_width"] * mdp_env_params["cell_size"]
-                )
-                world_bounds["yrange"]["ub"] = world_bounds["yrange"]["lb"] + (
-                    mdp_env_params["grid_height"] * mdp_env_params["cell_size"]
-                )
+                world_bounds["xrange"]["lb"] = 0.05 * VIEWPORT_W / SCALE
+                world_bounds["yrange"]["lb"] = 0.05 * VIEWPORT_H / SCALE
+                world_bounds["xrange"]["ub"] = 0.75 * VIEWPORT_W / SCALE
+                world_bounds["yrange"]["ub"] = 0.9 * VIEWPORT_H / SCALE
+                mdp_env_params['cell_size']['x'] = (world_bounds["xrange"]["ub"] - world_bounds["xrange"]["lb"]) / mdp_env_params['grid_width']
+                mdp_env_params['cell_size']['y'] = (world_bounds["yrange"]["ub"] - world_bounds["yrange"]["lb"]) / mdp_env_params['grid_height']
+                
+                self.env_params = dict()
+                self.env_params["all_mdp_env_params"] = mdp_env_params
+                
 
                 self.env_params["world_bounds"] = world_bounds
 
                 mdp_list = self.create_mdp_list(self.env_params["all_mdp_env_params"])
                 self.env_params["mdp_list"] = mdp_list
                 self.env_params["num_goals"] = NUM_GOALS
+                self.env_params["is_visualize_grid"] = True
 
                 print ("GOALS", mdp_env_params["all_goals"])
                 discrete_robot_state = mdp_list[0].get_random_valid_state()
@@ -127,12 +126,12 @@ class Simulator(object):
                 for o in mdp_env_params["original_mdp_obstacles"]:
                     obs = collections.OrderedDict()
                     obs["bottom_left"] = (
-                        o[0] * mdp_env_params["cell_size"] + world_bounds["xrange"]["lb"],
-                        o[1] * mdp_env_params["cell_size"] + world_bounds["yrange"]["lb"],
+                        o[0] * mdp_env_params["cell_size"]['x'] + world_bounds["xrange"]["lb"],
+                        o[1] * mdp_env_params["cell_size"]['y'] + world_bounds["yrange"]["lb"],
                     )
                     obs["top_right"] = (
-                        (o[0] + 1) * mdp_env_params["cell_size"] + world_bounds["xrange"]["lb"],
-                        (o[1] + 1) * mdp_env_params["cell_size"] + world_bounds["yrange"]["lb"],
+                        (o[0] + 1) * mdp_env_params["cell_size"]['x'] + world_bounds["xrange"]["lb"],
+                        (o[1] + 1) * mdp_env_params["cell_size"]['y'] + world_bounds["yrange"]["lb"],
                     )
                     self.env_params["obstacles"].append(obs)
 
@@ -209,8 +208,8 @@ class Simulator(object):
         goal_poses = []
         for dg in discrete_goal_list:
             goal_pose = [0, 0, 0]
-            goal_pose[0] = (dg[0] * cell_size) + cell_size / 2.0 + world_bounds["xrange"]["lb"]
-            goal_pose[1] = (dg[1] * cell_size) + cell_size / 2.0 + world_bounds["yrange"]["lb"]
+            goal_pose[0] = (dg[0] * cell_size['x']) + cell_size['x'] / 2.0 + world_bounds["xrange"]["lb"]
+            goal_pose[1] = (dg[1] * cell_size['y']) + cell_size['y'] / 2.0 + world_bounds["yrange"]["lb"]
             goal_pose[2] = (float(dg[2]) / NUM_ORIENTATIONS) * 2 * PI
             goal_poses.append(goal_pose)
 
@@ -229,8 +228,8 @@ class Simulator(object):
         mode = discrete_state[3] - 1  # minus one because the dictionary is 0-indexed
 
         robot_position = [
-            x_coord * cell_size + cell_size / 2.0 + world_bounds["xrange"]["lb"],
-            y_coord * cell_size + cell_size / 2.0 + world_bounds["yrange"]["lb"],
+            x_coord * cell_size['x'] + cell_size['x'] / 2.0 + world_bounds["xrange"]["lb"],
+            y_coord * cell_size['y'] + cell_size['y'] / 2.0 + world_bounds["yrange"]["lb"],
         ]
         robot_orientation = (theta_coord * 2 * PI) / NUM_ORIENTATIONS
         start_mode = MODE_INDEX_TO_DIM[mode]

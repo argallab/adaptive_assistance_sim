@@ -11,9 +11,9 @@ VELOCITY_ITERATIONS = 180
 POSITION_ITERATIONS = 60
 SCALE = 20.0
 
-VIEWPORT_W = 600
+VIEWPORT_W = 800
 PI = math.pi
-VIEWPORT_H = 400
+VIEWPORT_H = 600
 
 # COLORS
 HUMAN_ROBOT_COLOR = (0.0, 0.0, 0.0)
@@ -394,17 +394,19 @@ class RobotSE2(object):
     def set_robot_color(self, robot_color):
         self.robot_color = robot_color
 
-    def _update_current_mode(self, mode_switch_action):
+    def update_current_mode(self, mode_switch_action):
         if self.mode_transition_type == ModeTransitionType.Forward_Backward:
             # ignore None mode switch action
             if mode_switch_action == "to_mode_l":
                 self.current_mode = self.current_mode - 1
                 if self.current_mode == 0:
                     self.current_mode = self.num_modes
+                return True
             if mode_switch_action == "to_mode_r":
                 self.current_mode = self.current_mode + 1
                 if self.current_mode == self.num_modes + 1:
                     self.current_mode = 1
+                return True
 
     def _mode_conditioned_velocity(self, velocity_action):
         assert len(velocity_action) == self.mode_set_type.value  # dimensinality of the interface command
@@ -422,7 +424,7 @@ class RobotSE2(object):
     # transition
     def step(self, action):
         # print(action)
-        self._update_current_mode(action.mode_switch_action)
+        self.update_current_mode(action.mode_switch_action)
         combined_velocity = self._mode_conditioned_velocity(action.interface_signal)
         # print(combined_velocity)
         self.robot.linearVelocity = [combined_velocity[0], combined_velocity[1]]

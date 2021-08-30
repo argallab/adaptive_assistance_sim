@@ -17,7 +17,6 @@ class HybridControlInput(object):
 
         self.send_msg = InterfaceSignal()
         self.send_msg.interface_signal = [0] * self.interface_velocity_dim
-        self.send_msg.mode_switch_action = "None"
 
         self.lock.acquire()
         try:
@@ -25,7 +24,7 @@ class HybridControlInput(object):
         finally:
             self.lock.release()
 
-    def startSend(self, rostopic, period=rospy.Duration(0.01)):
+    def startSend(self, rostopic, period=rospy.Duration(0.005)):
         """
         Start the send thread.
 
@@ -33,7 +32,7 @@ class HybridControlInput(object):
         :param rostopic: name of rostopic to update, ``str``
         """
 
-        self.pub = rospy.Publisher(rostopic, InterfaceSignal, queue_size=5)
+        self.pub = rospy.Publisher(rostopic, InterfaceSignal, queue_size=1)
         # self.pub = rospy.Publisher(rostopic, PoseVelocity, queue_size=1)
         self.send_thread = threading.Thread(target=self._send, args=(period,))
         self.send_thread.start()
@@ -49,7 +48,6 @@ class HybridControlInput(object):
                 data = InterfaceSignal()
                 data.interface_signal[: self.interface_velocity_dim] = list(np.mean(self.filter_list, axis=0))
                 data.header = self.data.header
-                data.mode_switch_action = self.data.mode_switch_action
             finally:
                 self.lock.release()
 

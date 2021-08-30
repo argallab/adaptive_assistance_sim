@@ -11,7 +11,7 @@
 	<arg name="finger_dim" default="0"/>
 	<arg name="interface_velocity_dim" default="1"/>
 
-	<rosparam param="snp_velocity_scale">13</rosparam>
+	<rosparam param="snp_velocity_scale">5</rosparam>
 	<rosparam param="mode_switch_paradigm">2</rosparam>
 	<rosparam param="interface_dim">1</rosparam>
 

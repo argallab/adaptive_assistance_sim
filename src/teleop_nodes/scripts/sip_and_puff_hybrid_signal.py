@@ -15,6 +15,7 @@ from std_msgs.msg import Int16
 from teleop_nodes.cfg import SipPuffModeSwitchParadigmConfig
 from teleop_nodes.srv import SetMode, SetModeRequest, SetModeResponse
 from std_srvs.srv import SetBool, SetBoolResponse
+from envs.srv import SwitchModeSrv, SwitchModeSrvRequest, SwitchModeSrvResponse
 
 npa = np.array
 
@@ -36,7 +37,12 @@ class SNPInput(HybridControlInput):
 
         self.send_msg = InterfaceSignal()
         self.send_msg.interface_signal = [0] * self.interface_velocity_dim
-        self.send_msg.mode_switch_action = "None"
+
+        rospy.loginfo("Waiting for sim_env node ")
+        rospy.wait_for_service("/sim_env/switch_mode_in_robot")
+        rospy.loginfo("Found sim_env")
+
+        self.switch_mode_in_robot_service = rospy.ServiceProxy("/sim_env/switch_mode_in_robot", SwitchModeSrv)
 
     def initialize_subscribers(self):
         rospy.Subscriber("/joy_sip_puff", Joy, self.receive)
@@ -46,18 +52,21 @@ class SNPInput(HybridControlInput):
 
     def _handle_mode_switch_action(self, msg):
         switch = False
-
+        req = SwitchModeSrvRequest()
         if self.mode_switch_paradigm == 1:
             if msg.buttons[0] or msg.buttons[3]:
-                self.send_msg.mode_switch_action = "to_mode_r"
+                req.mode_switch_action = "to_mode_r"
+                self.switch_mode_in_robot_service(req)
                 switch = True
 
         elif self.mode_switch_paradigm == 2:
             if msg.buttons[0]:
-                self.send_msg.mode_switch_action = "to_mode_r"
+                req.mode_switch_action = "to_mode_r"
+                self.switch_mode_in_robot_service(req)
                 switch = True
             elif msg.buttons[3]:
-                self.send_msg.mode_switch_action = "to_mode_l"
+                req.mode_switch_action = "to_mode_l"
+                self.switch_mode_in_robot_service(req)
                 switch = True
 
         if switch:
@@ -67,15 +76,17 @@ class SNPInput(HybridControlInput):
         if self.motion_paradigm == 3:  # fixed velocity
             if msg.buttons[1]:  # soft puff
                 # add vel multiplication element wise mult with self._vel_multiplier
-                self.send_msg.interface_signal = [+1] * self.velocity_scale
+                self.send_msg.interface_signal = [+1 * self.velocity_scale]
             elif msg.buttons[2]:  # soft sip
-                self.send_msg.interface_signal = [-1] * self.velocity_scale
+                self.send_msg.interface_signal = [-1 * self.velocity_scale]
             else:
                 self.send_msg.interface_signal = [0]
 
     def handle_paradigms(self, msg):
         self._handle_mode_switch_action(msg)
         self._handle_velocity_action(msg)
+
+        self.send_msg.header.stamp = rospy.Time.now()
 
     def handle_threading(self):
         self.lock.acquire()
@@ -86,14 +97,11 @@ class SNPInput(HybridControlInput):
 
     # the main function, determines velocities to send to robot
     def receive(self, msg):
-        self.send_msg.mode_switch_action = "None"
         if msg.header.frame_id == "input stopped":
             self._lock_input = False
         if not self._lock_input:
             self.handle_paradigms(msg)
             self.handle_threading()
-            if self.send_msg.mode_switch_action != "None":
-                print(self.send_msg.mode_switch_action)
 
     # function required from abstract in control_input
     def getDefaultData(self):
