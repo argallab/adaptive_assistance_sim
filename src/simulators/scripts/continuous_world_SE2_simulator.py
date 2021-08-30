@@ -150,6 +150,15 @@ class Simulator(object):
         self.env.reset()
         self.env.viewer.window.on_key_press = self.key_press
 
+        rospy.loginfo("Waiting for goal inference node")
+        rospy.wait_for_service("/goal_inference/init_belief")
+        rospy.loginfo("goal inference node service found! ")
+
+        self.init_belief_srv = rospy.ServiceProxy("/goal_inference/init_belief", InitBelief)
+        self.init_belief_request = InitBeliefRequest()
+        self.init_belief_request.num_goals = self.env_params["num_goals"]
+        status = self.init_belief_srv(self.init_belief_request)
+
         r = rospy.Rate(100)
         self.trial_start_time = time.time()
         if not self.training:

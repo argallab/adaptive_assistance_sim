@@ -51,6 +51,27 @@ class ContinuousWorldSE2Env(object):
         self.text_display_delay = 2
         self.start_msg_ind = 0
 
+    def get_prob_a_s_all_g(self, req):
+        response = PASAllGResponse()
+        current_discrete_mdp_state = rospy.get_param("current_discrete_mdp_state", [0, 0, 0, 1])
+        current_discrete_mdp_state = tuple(current_discrete_mdp_state)  # [x,y,t,m]
+        p_a_s_all_g = []
+        optimal_action_s_g = []
+        for g in range(self.num_goals):
+            mdp_g = self.mdp_list[g]
+            p_a_s_g_msg = PASSingleG()
+            p_a_s_g_msg.goal_id = g
+            for task_level_action in TASK_LEVEL_ACTIONS:
+                p_a_s_g_msg.p_a_s_g.append(mdp_g.get_prob_a_given_s(current_discrete_mdp_state, task_level_action))
+            p_a_s_all_g.append(p_a_s_g_msg)
+            # optimal action to take in current state for goal g. Used to modify phm in inference node
+            optimal_action_s_g.append(mdp_g.get_optimal_action(current_discrete_mdp_state, return_optimal=True))
+
+        response.p_a_s_all_g = p_a_s_all_g
+        response.optimal_action_s_g = optimal_action_s_g
+        response.status = True
+        return response
+
     def _continuous_orientation_to_discrete_orientation(self):
         cont_orientation = self.robot.get_angle()
         # wrap angle back to  0 to 2PI
@@ -75,7 +96,7 @@ class ContinuousWorldSE2Env(object):
         mdp_discrete_position = self.continuous_position_to_loc_coord[tuple(nearest_continuous_position)]
         mdp_discrete_orientation = self._continuous_orientation_to_discrete_orientation()
         # current_mode_index = rospy.get_param("mode")  # 0,1,2
-        current_mode_index = self.robot.get_current_mode
+        current_mode_index = self.robot.get_current_mode()
 
         mdp_discrete_state = [
             mdp_discrete_position[0],
@@ -369,6 +390,7 @@ class ContinuousWorldSE2Env(object):
                 MODE_DISPLAY_CIRCLE_START_POSITION_S[1],
             )
         if not self.service_initialized:
+            rospy.Service("/sim_env/get_prob_a_s_all_g", PASAllG, self.get_prob_a_s_all_g)
             rospy.Service("/sim_env/switch_mode_in_robot", SwitchModeSrv, self.switch_mode_in_robot)
             self.service_initialized = True
 

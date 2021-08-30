@@ -6,15 +6,15 @@ import numpy as np
 from sensor_msgs.msg import Joy
 import time
 import collections
-from dynamic_reconfigure.server import Server
-from teleop_nodes.srv import InferCorrect, InferCorrectRequest, InferCorrectResponse
-from teleop_nodes.srv import GoalInferModify, GoalInferModifyRequest, GoalInferModifyResponse
+from std_srvs.srv import Empty, EmptyRequest, EmptyResponse
+from teleop_nodes.srv import GoalInferenceInfo, GoalInferenceInfoRequest, GoalInferenceInfoResponse
 import sys
 import os
 import rospkg
+import threading
 
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
-from adaptive_assistance_sim_utils import AssistanceType
+# from adaptive_assistance_sim_utils import AssistanceType
 
 npa = np.array
 
@@ -55,6 +55,10 @@ class SNPMapping(object):
             {"Hard Puff": 0, "Soft Puff": 1, "Soft Sip": 2, "Hard Sip": 3}
         )
 
+        self.raw_joy_message = Joy()
+        self.raw_joy_message.axes = np.zeros(2)
+        self.raw_joy_message.buttons = np.zeros(8)
+
         # Initialize publisher and subscribers
         rospy.Subscriber("/joy", Joy, self.joy_callback)
         self.before_inference_pub = rospy.Publisher("joy_sip_puff_before", Joy, queue_size=1)
@@ -73,21 +77,30 @@ class SNPMapping(object):
         self.before_send_msg.axes = np.zeros(1)  # pressure ([-1, 1])
         self.before_send_msg.buttons = np.zeros(4)  # hard puff, soft puff, soft sip, hard sip
 
-        self.assistance_type = rospy.get_param("/assistance_type", 2)
-        if self.assistance_type == 0:
-            self.assistance_type = AssistanceType.Filter
-        elif self.assistance_type == 1:
-            self.assistance_type = AssistanceType.Corrective
-        elif self.assistance_type == 2:
-            self.assistance_type = AssistanceType.No_Assistance
+        # self.assistance_type = rospy.get_param("/assistance_type", 2)
+        # if self.assistance_type == 0:
+        #     self.assistance_type = AssistanceType.Filter
+        # elif self.assistance_type == 1:
+        #     self.assistance_type = AssistanceType.Corrective
+        # elif self.assistance_type == 2:
+        #     self.assistance_type = AssistanceType.No_Assistance
 
-        # rospy.loginfo("Waiting for goal_inference_and_correction node ")
-        # rospy.wait_for_service("/goal_inference_and_correction/handle_inference_and_unintended_actions")
-        # rospy.loginfo("Found goal_inference_and_correction")
+        rospy.loginfo("Waiting for goal_inference node ")
+        rospy.wait_for_service("/goal_inference/handle_inference")
+        rospy.loginfo("Found goal_inference")
 
-        # self.infer_and_correct_service = rospy.ServiceProxy(
-        #     "/goal_inference_and_correction/handle_inference_and_unintended_actions", GoalInferModify
-        # )
+        self.goal_inference_service = rospy.ServiceProxy("/goal_inference/handle_inference", GoalInferenceInfo)
+        self.running = False
+        self.runningCV = threading.Condition()
+        self.rate = rospy.Rate(10)
+        rospy.Service("/snp_mapping/start_thread", Empty, self.start_thread)
+
+    def start_thread(self, req):
+        print("start running")
+        response = EmptyResponse()
+        self.running = True
+        print(self.running)
+        return response
 
     # #######################################################################################
     #                           Check Sip and Puff Limits                                   #
@@ -95,19 +108,19 @@ class SNPMapping(object):
     # checks whether within limits, otherwise air velocity in dead zone (essentailly zero)
     # written this way to make debugging easier if needed
     # labels hard and soft sips and puffs, buffers out
-    def update_assistance_type(self):
-        # TODO maybe replace with service
-        self.assistance_type = rospy.get_param("assistance_type", 2)
-        if self.assistance_type == 0:
-            self.assistance_type = AssistanceType.Filter
-        elif self.assistance_type == 1:
-            self.assistance_type = AssistanceType.Corrective
-        elif self.assistance_type == 2:
-            self.assistance_type = AssistanceType.No_Assistance
+    # def update_assistance_type(self):
+    #     # TODO maybe replace with service
+    #     self.assistance_type = rospy.get_param("assistance_type", 2)
+    #     if self.assistance_type == 0:
+    #         self.assistance_type = AssistanceType.Filter
+    #     elif self.assistance_type == 1:
+    #         self.assistance_type = AssistanceType.Corrective
+    #     elif self.assistance_type == 2:
+    #         self.assistance_type = AssistanceType.No_Assistance
 
     def checkLimits(self, airVelocity):
         if self.lower_puff_limit < airVelocity < self.lower_sip_limit:
-            self.send_msg.header.frame_id = "Zero Band"
+            self.send_msg.header.frame_id = "None"
             self.send_msg.buttons = np.zeros(4)
         elif self.lower_sip_limit <= airVelocity <= self.soft_sip_max_limit:  # register as soft sip
             self.send_msg.header.frame_id = "Soft Sip"
@@ -123,9 +136,9 @@ class SNPMapping(object):
             self.send_msg.buttons[3] = 1
         else:
             if airVelocity < 0:
-                self.send_msg.header.frame_id = "Soft-Hard Puff Deadband"
+                self.send_msg.header.frame_id = "None"
             else:
-                self.send_msg.header.frame_id = "Soft-Hard Sip Deadband"
+                self.send_msg.header.frame_id = "None"
             self.send_msg.buttons = np.zeros(4)
 
         self.before_send_msg.header.frame_id = self.send_msg.header.frame_id
@@ -133,22 +146,12 @@ class SNPMapping(object):
         self.before_inference_pub.publish(self.before_send_msg)
 
         # self.update_assistance_type()
-        # if (
-        #     self.send_msg.header.frame_id != "Zero Band"
-        #     and self.send_msg.header.frame_id != "Soft-Hard Puff Deadband"
-        #     and self.send_msg.header.frame_id != "Soft-Hard Sip Deadband"
-        #     and self.send_msg.header.frame_id != "Input Stopped"
-        # ):
-        #     request = GoalInferModifyRequest()
-        #     request.phm = self.send_msg.header.frame_id
-        #     response = self.infer_and_correct_service(request)
-        #     if response.ph_modified == "None":
-        #         self.send_msg.header.frame_id = "Zero Band"
-        #     else:
-        #         self.send_msg.header.frame_id = response.ph_modified
-        #     self.send_msg.buttons = np.zeros(4)
-        #     if self.send_msg.header.frame_id != "Zero Band":
-        #         self.send_msg.buttons[self.command_to_button_index_map[self.send_msg.header.frame_id]] = 1
+        request = GoalInferenceInfoRequest()
+        request.phm = self.send_msg.header.frame_id
+        response = self.goal_inference_service(request)
+        self.send_msg.buttons = np.zeros(4)
+        if self.send_msg.header.frame_id != "None":
+            self.send_msg.buttons[self.command_to_button_index_map[self.send_msg.header.frame_id]] = 1
 
         return 0
 
@@ -158,27 +161,48 @@ class SNPMapping(object):
     # recieves raw input, checks for buildup and
 
     def joy_callback(self, msg):
+        self.raw_joy_message = msg
+
+    def step(self):
         # Ignore the leadup to powerful blow that leads to mode switch (ONLY FOR SIP-PUFF SYSTEM, otherwise delete)
         # seems like thread issue if the number to ignore is too high
+        # print(self.raw_joy_message)
         if self._ignore_input_counter < self._num_inputs_to_ignore:
             self._ignore_input_counter += 1
 
         self.send_msg.header.stamp = rospy.Time.now()
-        self.send_msg.axes[0] = msg.axes[1]
-        self.checkLimits(msg.axes[1])
+        # the pressure level are directly copied from the input joy message.
+        self.send_msg.axes[0] = self.raw_joy_message.axes[1]
+        self.checkLimits(self.raw_joy_message.axes[1])
         self.after_inference_pub.publish(self.send_msg)
 
         # prevent robot arm moving after done blowing, zero out velocities
-        if msg.buttons[0] is 0 and msg.buttons[1] is 0:  # the last input in each blow is 0 for buttons
+        # the last input in each blow is 0 for buttons
+        if self.raw_joy_message.buttons[0] is 0 and self.raw_joy_message.buttons[1] is 0:
             self._ignore_input_counter = 0  # the constraints get
             self.send_msg.header.frame_id = "input stopped"
             self.send_msg.buttons = np.zeros(4)
             self.after_inference_pub.publish(self.send_msg)
 
-        self.old_msg = msg
+        self.old_msg = self.raw_joy_message
+
+    def spin(self):
+        rospy.loginfo("Running")
+        try:
+            while not rospy.is_shutdown():
+                self.runningCV.acquire()
+                if self.running:
+                    self.step()
+                    self.rate.sleep()
+                else:
+                    self.runningCV.wait(1.0)
+                self.runningCV.release()
+        except KeyboardInterrupt:
+            rospy.logdebug("Keyboard interrupt, shutting down")
+            rospy.core.signal_shutdown("Keyboard interrupt")
 
 
 if __name__ == "__main__":
 
-    SNPMapping()
-    rospy.spin()
+    s = SNPMapping()
+    s.spin()

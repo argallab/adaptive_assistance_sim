@@ -21,6 +21,7 @@
   <arg name="JOINT" default="false" doc="Set to true if joint velocity control"/>
   
   <node pkg="simulators" output="screen" type="continuous_world_SE2_simulator.py" name="continuous_world_SE2_simulator"  args="$(arg subject_id) $(arg assistance_block) $(arg block_id) $(arg training)"/>
+  <node pkg="inference_engine" output="screen" type="goal_inference.py" name="goal_inference"  args="$(arg subject_id)"/>
   
   <include file="$(find teleop_nodes)/launch/teleop_nodes.launch">
     <arg name="SNP" value="$(arg SNP)"/>

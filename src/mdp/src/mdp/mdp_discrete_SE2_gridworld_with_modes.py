@@ -293,6 +293,7 @@ class MDPDiscreteSE2GridWorldWithModes(DiscreteMDP):
         y_coord = coord[Dim.Y.value]
         theta_coord = coord[Dim.Theta.value]
         mode = coord[Dim.ModeSE2.value]
+        # print("Coordinate ", coord)
         state_id = (
             ((x_coord * self.height + y_coord) * self.num_discrete_orientations + theta_coord) * self.num_modes
             + mode

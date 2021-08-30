@@ -70,6 +70,7 @@ add_service_files(
   StopLatch.srv
 	InferCorrect.srv
   GoalInferModify.srv
+  GoalInferenceInfo.srv
 )
 
 ## Generate actions in the 'action' folder

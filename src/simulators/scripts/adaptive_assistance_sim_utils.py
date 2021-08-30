@@ -327,7 +327,7 @@ class RobotSE2(object):
         world,
         position,
         orientation,
-        init_control_mode=0,
+        init_control_mode=1,
         robot_color=(0.0, 0.0, 1.0),
         radius=10,
         robot_type=CartesianRobotType.SE2,
@@ -395,6 +395,7 @@ class RobotSE2(object):
         self.robot_color = robot_color
 
     def update_current_mode(self, mode_switch_action):
+        # directly initiated from the teleop via service in env which contains this robot
         if self.mode_transition_type == ModeTransitionType.Forward_Backward:
             # ignore None mode switch action
             if mode_switch_action == "to_mode_l":
@@ -424,7 +425,7 @@ class RobotSE2(object):
     # transition
     def step(self, action):
         # print(action)
-        self.update_current_mode(action.mode_switch_action)
+        # self.update_current_mode(action.mode_switch_action)
         combined_velocity = self._mode_conditioned_velocity(action.interface_signal)
         # print(combined_velocity)
         self.robot.linearVelocity = [combined_velocity[0], combined_velocity[1]]
