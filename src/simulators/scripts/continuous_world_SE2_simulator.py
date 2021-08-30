@@ -196,6 +196,17 @@ class Simulator(object):
                             self.shutdown_hook("Reached end of training")
                             break
                 
+                #get current robot_pose
+                #get current belief. and entropy of belief. compute argmax g
+                #get pfield vel for argmax g and current robot pose
+                #blend velocity by combining it with user vel.
+                # apply blend velocity to robot. 
+                # if uservel is Null for 2 seconds, activate disamb mode. 
+                # # get current discrete state, compute nearby states.
+                # # compute MI. get disamb discrete state
+                # # convert to continuous disamb state (centre of disamb discrete state)
+                # # change goal for disamb pfield
+                # # get disamb pfield vel. Continue in disamb mode, until current robot_pose is eps within contonuious disamb state
                 if self.restart:
                     pass
 
