@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(sim_pfields)
+project(ds_obs_avoidance)
 
 ## Add support for C++11, supported in ROS Kinetic and newer
 # add_definitions(-std=c++11)
@@ -8,21 +8,18 @@ project(sim_pfields)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  envs
   message_generation
   rospy
-  std_msgs
-  teleop_nodes
 )
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED COMPONENTS system)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
+catkin_python_setup()
 
 ################################################
 ## Declare ROS messages, services and actions ##
@@ -103,12 +100,12 @@ find_package(catkin REQUIRED COMPONENTS
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-	# catkin_package(
-	#  INCLUDE_DIRS include
-	# #  LIBRARIES inference_and_correction
-	# # CATKIN_DEPENDS envs message_runtime rospy std_msgs teleop_nodes
-	# #  DEPENDS system_lib
-	# )
+catkin_package(
+	# INCLUDE_DIRS include
+#  LIBRARIES inference_and_correction
+CATKIN_DEPENDS rospy message_runtime
+#  DEPENDS system_lib
+)
 
 ###########
 ## Build ##
@@ -118,7 +115,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
-  ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS} 
+  ${Boost_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
