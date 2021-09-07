@@ -110,7 +110,7 @@ generate_dynamic_reconfigure_options(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES simulators
- CATKIN_DEPENDS message_runtime rospy sensor_msgs std_msgs
+CATKIN_DEPENDS message_runtime rospy sensor_msgs std_msgs
 #  DEPENDS system_lib
 )
 

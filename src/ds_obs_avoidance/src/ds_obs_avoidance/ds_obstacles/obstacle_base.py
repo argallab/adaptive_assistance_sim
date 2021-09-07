@@ -8,8 +8,9 @@ import numpy.linalg as LA
 from math import sin, cos, pi, ceil
 
 import abc
-from ds_obs_avoidance.ds_utils.angle_math import get_angle_space_inverse, periodic_weighted_sum
+from ds_obs_avoidance.ds_utils.angle_math import *
 from ds_obs_avoidance.ds_utils.linalg import get_orthogonal_basis
+from ds_obs_avoidance.ds_utils.directional_space import *
 import matplotlib.pyplot as plt
 
 visualize_debug = False
@@ -221,12 +222,12 @@ class Obstacle(object):
 
     # TODO: use loop for 2D array, in order to speed up for 'on-robot' implementation!
     def get_normal_direction(self, position, in_global_frame=False):
-        """ Get normal direction to the surface. 
-        IMPORTANT: Based on convention normal.dot(reference)>0 . """
+        """Get normal direction to the surface.
+        IMPORTANT: Based on convention normal.dot(reference)>0 ."""
         raise NotImplementedError("Implement function in child-class of <Obstacle>.")
 
     def get_gamma(self, position, *args, **kwargs):
-        """ Get gamma value of obstacle."""
+        """Get gamma value of obstacle."""
         if len(position.shape) == 1:
             position = np.reshape(position, (self.dim, 1))
 
@@ -239,8 +240,8 @@ class Obstacle(object):
             ValueError("Triple dimensional position are unexpected")
 
     def _get_gamma(self, position, reference_point=None, in_global_frame=False, gamma_type="proportional"):
-        """ Calculates the norm of the function.
-        Position input has to be 2-dimensional array """
+        """Calculates the norm of the function.
+        Position input has to be 2-dimensional array"""
         if in_global_frame:
             position = self.transform_global2relative(position)
             if not reference_point is None:
@@ -302,7 +303,7 @@ class Obstacle(object):
     def get_surface_derivative_angle_num(
         self, angle_dir, null_dir=None, NullMatrix=None, in_global_frame=False, rel_delta_dir=1e-6
     ):
-        """ Numerical evaluation of surface derivative. """
+        """Numerical evaluation of surface derivative."""
         # TODO: make global frame evaluation more efficient
         # TODO: get surface intersection based on direction
 
@@ -334,7 +335,7 @@ class Obstacle(object):
     def get_normal_derivative_angle_num(
         self, angle_dir, null_dir=None, NullMatrix=None, in_global_frame=False, delta_dir=1e-6
     ):
-        """ Numerical evaluation of surface derivative. """
+        """Numerical evaluation of surface derivative."""
         # TODO: make global frame evaluation more efficient
         # TODO: get surface intersection based on direction
 
@@ -361,7 +362,7 @@ class Obstacle(object):
         return norm_derivs
 
     def transform_global2relative(self, position):
-        """ Transform a position from the global frame of reference 
+        """Transform a position from the global frame of reference
         to the obstacle frame of reference"""
         # TODO: transform this into wrapper / decorator
         if not position.shape[0] == self.dim:
@@ -381,7 +382,7 @@ class Obstacle(object):
             raise ValueError("Unexpected position-shape")
 
     def transform_relative2global(self, position):
-        """ Transform a position from the obstacle frame of reference 
+        """Transform a position from the obstacle frame of reference
         to the global frame of reference"""
         if not isinstance(position, (list, np.ndarray)):
             raise TypeError("Position={} is of type {}".format(position, type(position)))
@@ -411,14 +412,14 @@ class Obstacle(object):
             raise ValueError("Unexpected position-shape")
 
     def transform_relative2global_dir(self, direction):
-        """ Transform a direction, velocity or relative position to the global-frame """
+        """Transform a direction, velocity or relative position to the global-frame"""
         if self.dim > 3:
             warnings.warn("Not implemented for higer dimensions")
             return direction
         return self.rotMatrix.dot(direction)
 
     def transform_global2relative_dir(self, direction):
-        """ Transform a direction, velocity or relative position to the obstacle-frame """
+        """Transform a direction, velocity or relative position to the obstacle-frame"""
         if self.dim > 3:
             warnings.warn("Not implemented for higer dimensions")
             return direction
@@ -703,7 +704,11 @@ class Obstacle(object):
         elif self.dim == 3:
             R_x = np.array(
                 [
-                    [1, 0, 0,],
+                    [
+                        1,
+                        0,
+                        0,
+                    ],
                     [0, np.cos(orientation[0]), np.sin(orientation[0])],
                     [0, -np.sin(orientation[0]), np.cos(orientation[0])],
                 ]
@@ -731,7 +736,7 @@ class Obstacle(object):
             self.rotMatrix = np.eye(self.dim)
 
     def set_reference_point(self, position, in_global_frame=False):  # Inherit
-        """Defines reference point. 
+        """Defines reference point.
         It is used to create reference direction for the modulation of the system."""
 
         if in_global_frame:
@@ -741,8 +746,8 @@ class Obstacle(object):
         self.extend_hull_around_reference()
 
     def extend_hull_around_reference(self):
-        """ Updates the obstacles such that they are star-shaped with respect to the reference
-        point. """
+        """Updates the obstacles such that they are star-shaped with respect to the reference
+        point."""
         raise NotImplementedError("Implement for fully functional child class.")
 
     def move_obstacle_to_referencePoint(self, position, in_global_frame=True):
@@ -755,7 +760,7 @@ class Obstacle(object):
         # self.center_dyn = self.reference_point
 
     def move_center(self, position, in_global_frame=True):
-        """ Change (center) position of the system. 
+        """Change (center) position of the system.
         Note that all other variables are relative."""
 
         if not in_global_frame:
@@ -774,12 +779,12 @@ class Obstacle(object):
         time_current=None,
         reset=False,
     ):
-        """ Updates position and orientation. Additionally calculates linear and angular velocity based on the passed timestep. 
+        """Updates position and orientation. Additionally calculates linear and angular velocity based on the passed timestep.
         Updated values for pose and twist are filetered.
 
-        Input: 
-        - Position (2D) & 
-        - Orientation (float)  """
+        Input:
+        - Position (2D) &
+        - Orientation (float)"""
 
         if self.dim > 2:
             raise NotImplementedError("Implement for dimension >2.")
@@ -872,15 +877,15 @@ class Obstacle(object):
             return self.reference_point
 
     def set_relative_gamma_at_position(self, position, relative_gamma, gammatype="proportional", in_global_frame=True):
-        """ Store the relative gamma of a corresponding position."""
+        """Store the relative gamma of a corresponding position."""
         if not in_global_frame:
             position = self.transform_relative2global(position)
         self._relative_gamma_position = position
         self._relative_gamma = relative_gamma
 
     def get_relative_gamma_at_position(self, position, gammatype="proportional", in_global_frame=True):
-        """ Returns relative gamma if position corresponds to stored one
-        returns None if this is not the case. """
+        """Returns relative gamma if position corresponds to stored one
+        returns None if this is not the case."""
         if not in_global_frame:
             position = self.transform_relative2global(position)
 
@@ -899,7 +904,7 @@ class Obstacle(object):
         return self._relative_gamma is not None
 
     def get_boundaryGamma(self, Gamma, Gamma_ref=0):  #
-        """ Reverse Gamma value such that boundaries can be treated with the same algorithm
+        """Reverse Gamma value such that boundaries can be treated with the same algorithm
         as obstacles
 
         Basic rule: [1, oo] -> [1, 0] AND [0, 1] -> [oo, 1]
@@ -1001,8 +1006,8 @@ class Obstacle(object):
             plt.plot([tang_abs[0], ref_abs[0]], [tang_abs[1], ref_abs[1]], "k--")
 
     def get_reference_direction(self, position, in_global_frame=False, normalize=True):
-        """ Get direction from 'position' to the reference point of the obstacle. 
-        The global frame is considered by the choice of the reference point. """
+        """Get direction from 'position' to the reference point of the obstacle.
+        The global frame is considered by the choice of the reference point."""
         # Inherit
 
         if hasattr(self, "reference_point") or hasattr(self, "center_dyn"):  # automatic adaptation of center
@@ -1061,7 +1066,9 @@ class Obstacle(object):
         return self.transform_relative2global(scaled_boundary_points)
 
     # @abstractmethod
-    def obs_check_collision(self,):
+    def obs_check_collision(
+        self,
+    ):
         raise NotImplementedError()
 
     # @abstractmethod

@@ -21,7 +21,7 @@ class LinearSystem(DynamicalSystem):
     position: Position at which the dynamical system is evaluated
     center_position: Center of the dynamical system - rotation has to reach <pi/2 at this position
     b:
-    
+
     Return
     ------
     Velocity (dynamical system) evaluted at the center position
@@ -40,7 +40,7 @@ class LinearSystem(DynamicalSystem):
                 raise ValueError(
                     "center_pos AND baseline default arguments has been used." + "Only one of them possible."
                 )
-            self.attractor_position = np.linalg.pinv(self.A_matrix) @ b
+            self.attractor_position = np.linalg.pinv(self.A_matrix).dot(b)
 
     def evaluate(self, position, max_vel=None):
         velocity = self.A_matrix.dot(position - self.attractor_position)
@@ -48,7 +48,7 @@ class LinearSystem(DynamicalSystem):
         return velocity
 
     def is_stable(self, position):
-        """ Check stability of given A matrix """
+        """Check stability of given A matrix"""
         A = self.A_matrix + self.A_matrix.T
         eigvals, eigvecs = np.linalg.eig(A)
 
@@ -59,11 +59,11 @@ class LinearSystem(DynamicalSystem):
 
 
 class ConstantValue(DynamicalSystem):
-    """ Returns constant velocity based on the DynamicalSystem parent-class"""
+    """Returns constant velocity based on the DynamicalSystem parent-class"""
 
     def __init__(self, velocity):
         self.constant_velocity = velocity
 
     def evaluate(self, *args, **kwargs):
-        """ Random input arguments, but always ouptuts same vector-field """
+        """Random input arguments, but always ouptuts same vector-field"""
         return self.constant_velocity

@@ -575,7 +575,7 @@ class Polygon(Obstacle):
         
         return normal_vector
     
-      def get_gamma(
+    def get_gamma(
         self,
         position,
         in_global_frame=False,
@@ -998,7 +998,7 @@ class Cuboid(Polygon):
         *args,
         **kwargs
     ):
-         """
+        """
         This class defines obstacles to modulate the DS around it
         At current stage the function focuses on Ellipsoids, 
         but can be extended to more general obstacles

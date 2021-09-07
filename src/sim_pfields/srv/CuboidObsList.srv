@@ -1,0 +1,4 @@
+int32 num_obstacles
+CuboidObs[] obs_descs
+---
+bool status

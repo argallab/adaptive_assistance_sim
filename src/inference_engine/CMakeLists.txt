@@ -103,12 +103,12 @@ generate_messages(
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-	# catkin_package(
-	#  INCLUDE_DIRS include
-	# #  LIBRARIES inference_and_correction
-	# # CATKIN_DEPENDS envs message_runtime rospy std_msgs teleop_nodes
-	# #  DEPENDS system_lib
-	# )
+catkin_package(
+#  INCLUDE_DIRS include
+#  LIBRARIES inference_and_correction
+CATKIN_DEPENDS envs message_runtime rospy std_msgs teleop_nodes
+#  DEPENDS system_lib
+)
 
 ###########
 ## Build ##
