@@ -5,6 +5,7 @@ import rospy
 import time
 from sensor_msgs.msg import Joy
 from envs.continuous_world_SE2_env import ContinuousWorldSE2Env
+from sim_pfields.msg import CuboidObs
 from sim_pfields.srv import CuboidObsList, CuboidObsListRequest,CuboidObsListResponse
 from sim_pfields.srv import AttractorPos, AttractorPosRequest, AttractorPosResponse
 from sim_pfields.srv import ComputeVelocity, ComputeVelocityRequest, ComputeVelocityResponse
@@ -81,6 +82,21 @@ class Simulator(object):
         )
         print "TRAINING BLOCK FILENAME and IS TRAINING MODE", self.testing_block_filename, self.training
 
+        rospy.loginfo("Waiting for sim_pfields node")
+        rospy.wait_for_service("/sim_pfields/init_obstacles")
+        rospy.wait_for_service("/sim_pfields/update_ds")
+        rospy.wait_for_service("/sim_pfields/compute_velocity")
+        rospy.loginfo("sim pfields node services found! ")
+
+        self.init_obstacles_srv = rospy.ServiceProxy('/sim_pfields/init_obstacles', CuboidObsList)
+        self.init_obstacles_request = CuboidObsListRequest()
+
+        self.update_ds_srv = rospy.ServiceProxy('/sim_pfields/update_ds', AttractorPos)
+        self.update_ds_request = AttractorPosRequest()
+
+        self.compute_velocity_srv = rospy.ServiceProxy('/sim_pfields/compute_velocity', ComputeVelocity)
+        self.compute_velocity_request = ComputeVelocityRequest()
+        
         self.terminate = False
         self.restart = False
         if self.trial_info_dir_path is not None and os.path.exists(self.trial_info_dir_path) and not self.training:
@@ -163,20 +179,7 @@ class Simulator(object):
         self.init_belief_request.num_goals = self.env_params["num_goals"]
         status = self.init_belief_srv(self.init_belief_request)
         
-        rospy.loginfo("Waiting for sim_pfields node")
-        rospy.wait_for_service("/sim_pfields/init_obstacles")
-        rospy.wait_for_service("/sim_pfields/update_ds")
-        rospy.wait_for_service("/sim_pfields/compute_velocity")
-        rospy.loginfo("sim pfields node services found! ")
-
-        self.init_obstacles_srv = rospy.ServiceProxy('/sim_pfields/init_obstacles', CuboidObsList)
-        self.init_obstacles_request = CuboidObsListRequest()
-
-        self.update_ds_srv = rospy.ServiceProxy('/sim_pfields/update_ds', AttractorPos)
-        self.update_ds_request = AttractorPosRequest()
-
-        self.compute_velocity_srv = rospy.ServiceProxy('/sim_pfields/compute_velocity', ComputeVelocity)
-        self.compute_velocity_request = ComputeVelocityRequest()
+        
 
         #init pfield nodes with 
         r = rospy.Rate(100)
@@ -305,7 +308,7 @@ class Simulator(object):
         mdp_env_params["robot_type"] = CartesianRobotType.SE2
         mdp_env_params["mode_set_type"] = ModeSetType.OneD
 
-        num_patches = 2
+        num_patches = 2 #two patches of obstacles. 
         if OCCUPANCY_LEVEL == 0.0:
             mdp_env_params["original_mdp_obstacles"] = []
         else:
@@ -340,15 +343,20 @@ class Simulator(object):
         return mdp_env_params
 
     def _create_rectangular_gw_obstacles(self, width, height, num_obstacle_patches):
+        
+        self.init_obstacles_srv.num_obstacles = num_obstacle_patches
+        self.init_obstacles_srv.obs_descs = []
 
         obstacle_list = []
         all_cell_coords = list(itertools.product(range(width), range(height)))
         # pick three random starting points
         obstacle_patch_seeds = random.sample(all_cell_coords, num_obstacle_patches)
         for i, patch_seed in enumerate(obstacle_patch_seeds):
-
+            
+            obs_desc = CuboidObs()
             width_of_obs = np.random.randint(1, 3)
             height_of_obs = np.random.randint(1, 3)
+            import IPython; IPython.embed(banner1='check')
 
             h_range = list(range(patch_seed[0], min(height - 1, patch_seed[0] + height_of_obs) + 1))
             w_range = list(range(patch_seed[1], min(width - 1, patch_seed[1] + width_of_obs) + 1))

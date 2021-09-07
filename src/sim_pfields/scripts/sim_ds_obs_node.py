@@ -36,7 +36,9 @@ class SimPFields(object):
         self.num_obstacles = req.num_obstacles
         self.obs_descs = req.obs_descs  # List of CuboidObss
         assert self.num_obstacles == len(self.obs_descs)
+        self.environment = GradientContainer()
         for i in range(self.num_obstacles):
+            # if no obstacles then self.environment will be []
             obs_desc = self.obs_descs[i]  # CuboidObs
             center_position = obs_desc.center_position
             orientation = obs_desc.orientation
