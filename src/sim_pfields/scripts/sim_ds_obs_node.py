@@ -11,7 +11,6 @@ import collections
 import IPython
 
 IPython.embed(banner1="check")
-from ds_obs_avoidance.ds_avoidance import modulation
 
 
 class SimPFields(object):
