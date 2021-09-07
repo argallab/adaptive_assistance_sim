@@ -5,6 +5,10 @@ import rospy
 import time
 from sensor_msgs.msg import Joy
 from envs.continuous_world_SE2_env import ContinuousWorldSE2Env
+from sim_pfields.srv import CuboidObsList, CuboidObsListRequest,CuboidObsListResponse
+from sim_pfields.srv import AttractorPos, AttractorPosRequest, AttractorPosResponse
+from sim_pfields.srv import ComputeVelocity, ComputeVelocityRequest, ComputeVelocityResponse
+
 from std_msgs.msg import Float32MultiArray
 from std_msgs.msg import MultiArrayDimension, String, Int8
 from teleop_nodes.msg import InterfaceSignal
@@ -158,7 +162,23 @@ class Simulator(object):
         self.init_belief_request = InitBeliefRequest()
         self.init_belief_request.num_goals = self.env_params["num_goals"]
         status = self.init_belief_srv(self.init_belief_request)
+        
+        rospy.loginfo("Waiting for sim_pfields node")
+        rospy.wait_for_service("/sim_pfields/init_obstacles")
+        rospy.wait_for_service("/sim_pfields/update_ds")
+        rospy.wait_for_service("/sim_pfields/compute_velocity")
+        rospy.loginfo("sim pfields node services found! ")
 
+        self.init_obstacles_srv = rospy.ServiceProxy('/sim_pfields/init_obstacles', CuboidObsList)
+        self.init_obstacles_request = CuboidObsListRequest()
+
+        self.update_ds_srv = rospy.ServiceProxy('/sim_pfields/update_ds', AttractorPos)
+        self.update_ds_request = AttractorPosRequest()
+
+        self.compute_velocity_srv = rospy.ServiceProxy('/sim_pfields/compute_velocity', ComputeVelocity)
+        self.compute_velocity_request = ComputeVelocityRequest()
+
+        #init pfield nodes with 
         r = rospy.Rate(100)
         self.trial_start_time = time.time()
         if not self.training:

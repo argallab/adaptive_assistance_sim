@@ -58,6 +58,7 @@ add_service_files(
   FILES
   CuboidObsList.srv
   AttractorPos.srv
+  ComputeVelocity.srv
 )
 
 ## Generate actions in the 'action' folder
