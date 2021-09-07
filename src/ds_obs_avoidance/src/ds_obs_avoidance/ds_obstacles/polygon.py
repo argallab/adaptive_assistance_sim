@@ -13,13 +13,12 @@ import copy
 from math import pi
 import numpy as np
 
-from ds_utils.directional_space import get_angle_space, get_angle_space_of_array
-from ds_utils.directional_space import get_directional_weighted_sum
-from ds_utils.angle_math import angle_is_in_between, angle_difference_directional
-from ds_utils.angle_math import *
-
-from ds_obstacles.obstacle_base import Obstacle
-from ds_avoidance.utils import get_tangents2ellipse
+from ds_obs_avoidance.ds_utils.directional_space import get_angle_space, get_angle_space_of_array
+from ds_obs_avoidance.ds_utils.directional_space import get_directional_weighted_sum
+from ds_obs_avoidance.ds_utils.angle_math import angle_is_in_between, angle_difference_directional
+from ds_obs_avoidance.ds_utils.angle_math import *
+from ds_obs_avoidance.ds_obstacles.obstacle_base import Obstacle
+from ds_obs_avoidance.ds_avoidance.utils import get_tangents2ellipse
 
 
 def is_one_point(point1, point2, margin=1e-9):

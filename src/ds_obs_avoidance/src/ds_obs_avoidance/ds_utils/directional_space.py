@@ -11,7 +11,7 @@ from math import pi
 
 import numpy as np
 
-from ds_utils.linalg import get_orthogonal_basis
+from ds_obs_avoidance.ds_utils.linalg import get_orthogonal_basis
 
 
 def get_angle_space_of_array(directions, positions=None, func_vel_default=None, null_direction_abs=None):

@@ -145,24 +145,24 @@ def transform_cartesian2polar(cartesian_coords, center_position=None, second_axi
     # output: [r, phi]
     return magnitude, angle
 
+
 def periodic_weighted_sum(angles, weights, reference_angle=None):
     """Weighted Average of angles (1D)"""
     # TODO: unify with directional_weighted_sum() // see above
     # Extend to dimenions d>2
-    if isinstance(angles, list): 
+    if isinstance(angles, list):
         angles = np.array(angles)
-    if isinstance(weights, list): 
+    if isinstance(weights, list):
         weights = np.array(weights)
 
-    
     if reference_angle is None:
-        if len(angles)>2:
+        if len(angles) > 2:
             raise NotImplementedError("No mean defined for periodic function with more than two angles.")
-        reference_angle = angle_difference_directional(angles[0], angles[1])/2.0 + angles[1]
+        reference_angle = angle_difference_directional(angles[0], angles[1]) / 2.0 + angles[1]
         reference_angle = angle_modulo(reference_angle)
 
-    angles = angle_modulo(angles-reference_angle)
-    
+    angles = angle_modulo(angles - reference_angle)
+
     mean_angle = angles.T.dot(weights)
     mean_angle = angle_modulo(mean_angle + reference_angle)
 

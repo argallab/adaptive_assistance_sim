@@ -13,8 +13,8 @@ import numpy.linalg as LA
 import warnings
 import sys
 
-from ds_utils.directional_space import get_directional_weighted_sum
-from ds_avoidance.utils import *
+from ds_obs_avoidance.ds_utils.directional_space import get_directional_weighted_sum
+from ds_obs_avoidance.ds_avoidance.utils import *
 
 
 def obs_avoidance_interpolation_moving(

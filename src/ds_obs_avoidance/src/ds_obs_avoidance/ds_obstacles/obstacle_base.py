@@ -8,9 +8,8 @@ import numpy.linalg as LA
 from math import sin, cos, pi, ceil
 
 import abc
-from ds_utils.angle_math import get_angle_space_inverse, periodic_weighted_sum
-from ds_utils.linalg import get_orthogonal_basis
-
+from ds_obs_avoidance.ds_utils.angle_math import get_angle_space_inverse, periodic_weighted_sum
+from ds_obs_avoidance.ds_utils.linalg import get_orthogonal_basis
 import matplotlib.pyplot as plt
 
 visualize_debug = False
@@ -27,7 +26,6 @@ visualize_debug = False
 #         velocity = self.transform_global2relative_dir(velocity)
 #         return velocity
 
-        
 
 class Obstacle(object):
     __metaclass__ = abc.ABCMeta
@@ -1052,20 +1050,20 @@ class Obstacle(object):
 
         if self.has_moved:
             self.draw_obstacle()
-    
+
     def get_scaled_boundary_points(self, scale, safety_margin=True, redraw_obstacle=False):
         # Draws at 1:scale
         if safety_margin:
-            scaled_boundary_points = scale*self._boundary_points_margin
+            scaled_boundary_points = scale * self._boundary_points_margin
         else:
-            scaled_boundary_points = scale*self._boundary_points
-            
+            scaled_boundary_points = scale * self._boundary_points
+
         return self.transform_relative2global(scaled_boundary_points)
 
     # @abstractmethod
-    def obs_check_collision(self, ):
+    def obs_check_collision(self,):
         raise NotImplementedError()
-    
+
     # @abstractmethod
     def get_distance_to_hullEdge(self, position, hull_edge=None):
         raise NotImplementedError()

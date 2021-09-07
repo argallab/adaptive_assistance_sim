@@ -10,10 +10,9 @@ import numpy as np
 import numpy.linalg as LA
 from numpy import pi
 
-from ds_utils.angle_math import *
-from ds_utils.linalg import get_orthogonal_basis
-
-from ds_utils.directional_space import get_directional_weighted_sum
+from ds_obs_avoidance.ds_utils.angle_math import *
+from ds_obs_avoidance.ds_utils.linalg import get_orthogonal_basis
+from ds_obs_avoidance.ds_utils.directional_space import get_directional_weighted_sum
 
 
 def get_relative_obstacle_velocity(

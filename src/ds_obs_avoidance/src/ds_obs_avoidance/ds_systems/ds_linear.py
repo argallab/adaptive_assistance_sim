@@ -7,7 +7,7 @@ Dynamical Systems with a closed-form description.
 
 import numpy as np
 
-from ds_systems.ds_base_class import DynamicalSystem
+from ds_obs_avoidance.ds_systems.ds_base_class import DynamicalSystem
 
 
 class LinearSystem(DynamicalSystem):
