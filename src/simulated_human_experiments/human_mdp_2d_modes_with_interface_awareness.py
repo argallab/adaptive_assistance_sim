@@ -14,8 +14,10 @@ sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts")
 from generate_adaptive_assistance_trials import create_random_obstacles, create_random_goals, create_random_start_state
 from mdp.mdp_discrete_2d_gridworld_with_modes import MDPDiscrete2DGridWorldWithModes
 from adaptive_assistance_sim_utils import *
+from mdp.mdp_utils import *
 import matplotlib.pyplot as plt
-from intent_inference.intent_inference_engine import IntentInference
+
+# from inference_engine.goal_inferen import IntentInference
 
 # low level commands issued by the snp interface. hp = hard puff, hs= hard sip, sp = soft puff, ss = soft sip. Also the domain for ui and um
 INTERFACE_LEVEL_ACTIONS = ["hp", "hs", "sp", "ss"]
@@ -278,7 +280,7 @@ def compute_mi(mdp_list, mdp_env_params, prior, states_for_disamb_computation=No
     avg_mi_for_valid_states = collections.OrderedDict()
     avg_dist_for_valid_states_from_goals = collections.OrderedDict()
     avg_total_reward_for_valid_states = collections.OrderedDict()
-    num_trajectories = 200
+    num_trajectories = 50
     assert len(prior) == NUM_GOALS
 
     kl_coeff = 0.8
@@ -580,6 +582,6 @@ def _compute_spatial_window_around_current_state(current_state, mdp_list):
 
 
 if __name__ == "__main__":
-    # simulate_human_2d_modes_mdp()
-    simulate_turn_taking_and_inference()
+    simulate_human_2d_modes_mdp()
+    # simulate_turn_taking_and_inference()
     # check_vis_traj()

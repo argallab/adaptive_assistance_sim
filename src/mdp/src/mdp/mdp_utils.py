@@ -238,7 +238,7 @@ def create_random_obstacles(width, height, occupancy_measure, num_obstacle_patch
 
     all_cell_coords = list(itertools.product(range(width), range(height)))
     # pick three random starting points
-    obstacle_patch_create_random_obstaclesseeds = random.sample(all_cell_coords, num_obstacle_patches)
+    obstacle_patch_seeds = random.sample(all_cell_coords, num_obstacle_patches)
 
     def get_random_obstacle_neighbors(obs):
         def check_bounds(state):
@@ -279,9 +279,7 @@ def create_random_goals(width, height, num_goals, obstacle_list):
     random_goals.append(sampled_goal)  # add the first goal into the array.
     # print(random_goals)
     while len(random_goals) < num_goals:
-        sampled_goal = random.sample(list(set(all_cell_coords) - set(obstacle_list) - set(random_goals)), 1)[
-            0
-        ]  # tuple
+        sampled_goal = random.sample(list(set(all_cell_coords) - set(obstacle_list) - set(random_goals)), 1)[0]  # tuple
         dist_to_goals = [np.linalg.norm(np.array(sampled_goal) - np.array(g)) for g in random_goals]
         if min(dist_to_goals) > INTER_GOAL_THRESHOLD:
             random_goals.append(sampled_goal)
