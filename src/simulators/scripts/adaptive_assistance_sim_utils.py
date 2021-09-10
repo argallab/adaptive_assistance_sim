@@ -373,9 +373,12 @@ class RobotSE2(object):
         return _allowed_control_dimensions
 
     def get_direction_marker_end_points(self):
-        return (self.robot.position[0], self.robot.position[1]), (
-            self.robot.position[0] + 2 * self.radius * math.cos(self.robot.angle),
-            self.robot.position[1] + 2 * self.radius * math.sin(self.robot.angle),
+        return (
+            (self.robot.position[0], self.robot.position[1]),
+            (
+                self.robot.position[0] + 2 * self.radius * math.cos(self.robot.angle),
+                self.robot.position[1] + 2 * self.radius * math.sin(self.robot.angle),
+            ),
         )
 
     def get_current_mode(self):

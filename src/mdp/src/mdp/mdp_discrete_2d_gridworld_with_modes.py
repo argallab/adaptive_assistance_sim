@@ -3,6 +3,7 @@ import collections
 import itertools
 from mdp.mdp_class import DiscreteMDP
 from mdp.mdp_utils import *
+from adaptive_assistance_sim_utils import *
 import math
 from scipy import sparse
 
