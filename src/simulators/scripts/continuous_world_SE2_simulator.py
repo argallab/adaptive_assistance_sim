@@ -32,7 +32,7 @@ from adaptive_assistance_sim_utils import *
 GRID_WIDTH = 10
 GRID_HEIGHT = 10
 NUM_ORIENTATIONS = 8
-NUM_GOALS = 3
+NUM_GOALS = 1
 OCCUPANCY_LEVEL = 0.1
 
 SPARSITY_FACTOR = 0.0
@@ -57,6 +57,7 @@ class Simulator(object):
 
         self.input_action = {}
         self.input_action["full_control_signal"] = user_vel
+
         rospy.Subscriber("/user_vel", InterfaceSignal, self.joy_callback)
         self.trial_index = 0
 
@@ -91,12 +92,12 @@ class Simulator(object):
         self.init_obstacles_srv = rospy.ServiceProxy('/sim_pfields/init_obstacles', CuboidObsList)
         self.init_obstacles_request = CuboidObsListRequest()
 
-        self.update_ds_srv = rospy.ServiceProxy('/sim_pfields/update_ds', AttractorPos)
-        self.update_ds_request = AttractorPosRequest()
+        self.update_attractor_ds_srv = rospy.ServiceProxy('/sim_pfields/update_ds', AttractorPos)
+        self.update_attractor_ds_request = AttractorPosRequest()
 
         self.compute_velocity_srv = rospy.ServiceProxy('/sim_pfields/compute_velocity', ComputeVelocity)
         self.compute_velocity_request = ComputeVelocityRequest()
-        
+
         self.terminate = False
         self.restart = False
         if self.trial_info_dir_path is not None and os.path.exists(self.trial_info_dir_path) and not self.training:
@@ -104,6 +105,9 @@ class Simulator(object):
         else:
             if not self.training:
                 mdp_env_params = self._create_mdp_env_param_dict()
+                print('DYN OBS SPECS', mdp_env_params['dynamic_obs_specs'])
+
+                # _init_pfields_obstacles(mdp_env_params['dynamic_obs_specs'])
                 mdp_env_params["cell_size"] = collections.OrderedDict()
 
                 # create mdp list here. Select start positoin from valid stats.
@@ -119,6 +123,9 @@ class Simulator(object):
                 mdp_env_params['cell_size']['x'] = (world_bounds["xrange"]["ub"] - world_bounds["xrange"]["lb"]) / mdp_env_params['grid_width']
                 mdp_env_params['cell_size']['y'] = (world_bounds["yrange"]["ub"] - world_bounds["yrange"]["lb"]) / mdp_env_params['grid_height']
                 
+
+                self._init_pfield_obs_desc(mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
+
                 self.env_params = dict()
                 self.env_params["all_mdp_env_params"] = mdp_env_params
                 
@@ -158,6 +165,8 @@ class Simulator(object):
                 self.env_params["goal_poses"] = self._generate_continuous_goal_poses(
                     mdp_env_params["all_goals"], mdp_env_params["cell_size"], self.env_params["world_bounds"]
                 )
+                self._init_goal_attractor_pose(self.env_params['goal_poses'][0])
+                print('cell size ', mdp_env_params["cell_size"] )
                 self.env_params['assistance_type'] = 1
             else:
                 pass
@@ -218,6 +227,17 @@ class Simulator(object):
                         else:
                             self.shutdown_hook("Reached end of training")
                             break
+                
+                robot_continuous_position = self.env.get_robot_position()
+                self.compute_velocity_request.current_pos  = robot_continuous_position
+                vel_response = self.compute_velocity_srv(self.compute_velocity_request)
+                # self.input_action['full_control_signal'] = vel_response.velocity_final
+
+                # compute mode_conditioned_velocity for self.input_action['human'] directly access the self.robot._mode_conditioned_velocity via env
+                # this would 3D vel.
+                # Blend the above with vel_response.velocity_final. TODO add rotational vel to the sim_pfield_node
+                # Update step function in robot to deal with full 3D vel. 
+                print('velocity', vel_response.velocity_final)
                 
                 #get current robot_pose
                 #get current belief. and entropy of belief. compute argmax g
@@ -281,6 +301,7 @@ class Simulator(object):
 
     def joy_callback(self, msg):
         self.input_action['full_control_signal'] = msg
+        # print(msg)
 
     def shutdown_hook(self, msg_string="DONE"):
         if not self.called_shutdown:
@@ -312,11 +333,14 @@ class Simulator(object):
         if OCCUPANCY_LEVEL == 0.0:
             mdp_env_params["original_mdp_obstacles"] = []
         else:
-            mdp_env_params["original_mdp_obstacles"] = self._create_rectangular_gw_obstacles(
+            mdp_env_params["original_mdp_obstacles"], dynamics_obs_specs = self._create_rectangular_gw_obstacles(
                 width=mdp_env_params["grid_width"],
                 height=mdp_env_params["grid_height"],
                 num_obstacle_patches=num_patches,
             )
+            print(mdp_env_params["original_mdp_obstacles"]  )
+            # mdp_env_params['original_mdp_obstacles'] = [(0,0), (mdp_env_params["grid_width"] - 1, 0), (0, mdp_env_params["grid_height"]-1)]
+
 
         print ("OBSTACLES", mdp_env_params["original_mdp_obstacles"])
         goal_list = create_random_goals(
@@ -339,30 +363,80 @@ class Simulator(object):
         mdp_env_params["sparsity_factor"] = SPARSITY_FACTOR
         mdp_env_params["rand_direction_factor"] = RAND_DIRECTION_FACTOR
         mdp_env_params["mdp_obstacles"] = []
+        mdp_env_params['dynamic_obs_specs'] = dynamics_obs_specs
 
         return mdp_env_params
 
+    def _init_goal_attractor_pose(self, continuous_goal_pose):
+        self.update_attractor_ds_request.attractor_position = continuous_goal_pose[:-1]
+        self.update_attractor_ds_srv(self.update_attractor_ds_request)
+
+    def _init_pfield_obs_desc(self, obs_param_dict_list, cell_size, world_bounds):
+        cell_size_x = cell_size['x']
+        cell_size_y = cell_size['y']
+        
+        self.init_obstacles_request.num_obstacles = len(obs_param_dict_list)
+        self.init_obstacles_request.obs_descs = []
+
+        for obs_param_dict in obs_param_dict_list:
+
+            obs_desc = CuboidObs()
+
+            #TODO add world bounds offset
+            bottom_left_cell_x = obs_param_dict['bottom_left_cell_x']
+            bottom_left_cell_y = obs_param_dict['bottom_left_cell_y']
+            true_width_of_obs_in_cells = obs_param_dict['true_width_of_obs_in_cells']
+            true_height_of_obs_in_cells = obs_param_dict['true_height_of_obs_in_cells']
+
+            center_position_x = (bottom_left_cell_x  + true_width_of_obs_in_cells * 0.5) * cell_size_x
+            center_position_y = (bottom_left_cell_y  + true_height_of_obs_in_cells * 0.5) * cell_size_y
+            axes_0 = true_width_of_obs_in_cells * cell_size_x #assuming axis 0 is the width
+            axes_1 = true_height_of_obs_in_cells * cell_size_y #assuming axis 1 is height
+            
+            # populate the obs desc msg
+            obs_desc.center_position = [center_position_x, center_position_y]
+            obs_desc.orientation = 0.0
+            obs_desc.axes_length = [axes_0, axes_1]
+            obs_desc.is_boundary = False
+
+            self.init_obstacles_request.obs_descs.append(obs_desc)
+        
+        self.init_obstacles_srv(self.init_obstacles_request)
+
+
     def _create_rectangular_gw_obstacles(self, width, height, num_obstacle_patches):
         
-        self.init_obstacles_srv.num_obstacles = num_obstacle_patches
-        self.init_obstacles_srv.obs_descs = []
-
         obstacle_list = []
+        dynamic_obs_specs = []
         all_cell_coords = list(itertools.product(range(width), range(height)))
         # pick three random starting points
         obstacle_patch_seeds = random.sample(all_cell_coords, num_obstacle_patches)
         for i, patch_seed in enumerate(obstacle_patch_seeds):
             
-            obs_desc = CuboidObs()
-            width_of_obs = np.random.randint(1, 3)
-            height_of_obs = np.random.randint(1, 3)
-            import IPython; IPython.embed(banner1='check')
+            width_of_obs = np.random.randint(1, 3) #width of obstacle in cells
+            height_of_obs = np.random.randint(1, 3) #height of obstacles in cells
 
-            h_range = list(range(patch_seed[0], min(height - 1, patch_seed[0] + height_of_obs) + 1))
-            w_range = list(range(patch_seed[1], min(width - 1, patch_seed[1] + width_of_obs) + 1))
-            obstacle_list.extend(list(itertools.product(h_range, w_range)))
+            w_range = list(range(patch_seed[0], min(width - 1, patch_seed[0] + width_of_obs - 1) + 1))
+            h_range = list(range(patch_seed[1], min(height - 1, patch_seed[1] + height_of_obs -1) + 1))
 
-        return obstacle_list
+            bottom_left_cell_x = patch_seed[0]
+            bottom_left_cell_y = patch_seed[1]
+            right_most_cell_id = min(width - 1, patch_seed[0] + width_of_obs - 1)
+            true_width_of_obs_in_cells = right_most_cell_id - patch_seed[0] + 1
+            top_most_cell_id = min(height - 1, patch_seed[1] + height_of_obs -1) 
+            true_height_of_obs_in_cells = top_most_cell_id - patch_seed[1] + 1
+
+            dyn_obs_desc_dict = collections.OrderedDict()
+            dyn_obs_desc_dict['bottom_left_cell_x'] = bottom_left_cell_x
+            dyn_obs_desc_dict['bottom_left_cell_y'] = bottom_left_cell_y
+            dyn_obs_desc_dict['true_width_of_obs_in_cells'] = true_width_of_obs_in_cells
+            dyn_obs_desc_dict['true_height_of_obs_in_cells'] = true_height_of_obs_in_cells
+
+            print('PATCH ', list(itertools.product(w_range, h_range)))
+            obstacle_list.extend(list(itertools.product(w_range, h_range)))
+            dynamic_obs_specs.append(dyn_obs_desc_dict)
+
+        return obstacle_list, dynamic_obs_specs
 
     def create_mdp_list(self, mdp_env_params):
         mdp_list = []

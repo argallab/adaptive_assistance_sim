@@ -33,6 +33,7 @@ class SimPFields(object):
         rospy.Service("/sim_pfields/compute_velocity", ComputeVelocity, self.compute_velocity)
 
     def populate_environment(self, req):
+        print("In POPULATE ENVIRONMENT service")
         self.num_obstacles = req.num_obstacles
         self.obs_descs = req.obs_descs  # List of CuboidObss
         assert self.num_obstacles == len(self.obs_descs)
@@ -55,15 +56,17 @@ class SimPFields(object):
 
         response = CuboidObsListResponse()
         response.status = True
-
+        print("ENVIRONMENT ", self.environment.list)
         return response
 
     def update_ds(self, req):
+        print("In UPDATE DS service")
         attractor_position = req.attractor_position
+        print("ATTRACTOR POSITION ", attractor_position)
         self.initial_ds_system = None
         self.initial_ds_system = LinearSystem(attractor_position=np.array(attractor_position))
         response = AttractorPosResponse()
-        response.status = True
+        response.success = True
         return response
 
     def compute_velocity(self, req):
@@ -111,16 +114,21 @@ class SimPFields(object):
         if not n_collfree:  # zero points
             warnings.warn("No ollision free points in space.")
         else:
-            print("Average time per evaluation {} ms".format(round((t_end - t_start) * 1000 / (n_collfree), 3)))
+            pass
+            # print("Average time per evaluation {} ms".format(round((t_end - t_start) * 1000 / (n_collfree), 3)))
+
         dx1_noColl, dx2_noColl = np.squeeze(xd_mod[0, :, :]), np.squeeze(xd_mod[1, :, :])
-        end_time = time.time()
-        n_calculations = np.sum(indOfNoCollision)
-        print("Number of free points: {}".format(n_calculations))
-        print("Average time: {} ms".format(np.round((end_time - start_time) / (n_calculations) * 1000), 5))
-        print("Modulation calculation total: {} s".format(np.round(end_time - start_time), 4))
+        # end_time = time.time()
+        # n_calculations = np.sum(indOfNoCollision)
+        # print("Number of free points: {}".format(n_calculations))
+        # print("Average time: {} ms".format(np.round((end_time - start_time) / (n_calculations) * 1000), 5))
+        # print("Modulation calculation total: {} s".format(np.round(end_time - start_time), 4))
 
         response = ComputeVelocityResponse()
-        response.velocity_final = [0.0, 0.0]
+        vel = np.array([float(dx1_noColl), float(dx2_noColl)])
+        vel = vel / np.linalg.norm(vel)
+        response.velocity_final = vel
+
         return response
 
 

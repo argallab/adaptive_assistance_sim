@@ -444,6 +444,9 @@ class ContinuousWorldSE2Env(object):
         else:
             return False
 
+    def get_robot_position(self):
+        return self.robot.get_position()
+
     def step(self, input_action):
         prev_robot_position = self.robot.get_position()
 

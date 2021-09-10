@@ -37,14 +37,10 @@ class DynamicalSystem(object):
 
     @property
     def attractor_position(self):
-        # todo remove print
-        print("In getter for attractor position")
         return self._attractor_position
 
     @attractor_position.setter
     def attractor_position(self, value):
-        # todo remove print
-        print("Setting attractor position at", value)
         self._attractor_position = value
 
     def limit_velocity(self, velocity, maximum_velocity=None):
@@ -63,7 +59,7 @@ class DynamicalSystem(object):
 
     @abc.abstractmethod
     def evaluate(self, position):
-        """ Returns velocity of the evaluated the dynamical system at 'position'."""
+        """Returns velocity of the evaluated the dynamical system at 'position'."""
         pass
 
     def compute_dynamics(self, position):
@@ -71,18 +67,18 @@ class DynamicalSystem(object):
         pass
 
     def check_convergence(self, *args, **kwargs):
-        """ Non compulsary function (only for stable systems), but needed to stop integration. """
+        """Non compulsary function (only for stable systems), but needed to stop integration."""
         raise NotImplementedError("No convergence check implemented.")
 
     def evaluate_array(self, position_array):
-        """ Return an array of positions evluated. """
+        """Return an array of positions evluated."""
         velocity_array = np.zeros(position_array.shape)
         for ii in range(position_array.shape[1]):
             velocity_array[:, ii] = self.evaluate_array(position_array[:, ii])
         return velocity_array
 
     def motion_integration(self, start_position, dt, max_iteration=10000):
-        """ Integrate spiral Motion """
+        """Integrate spiral Motion"""
         dataset = []
         dataset.append(start_position)
         current_position = start_position

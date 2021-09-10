@@ -28,7 +28,8 @@ class LinearSystem(DynamicalSystem):
     """
 
     def __init__(self, attractor_position=None, A_matrix=None, b=None):
-        super().__init__(attractor_position=attractor_position)
+        # super().__init__(attractor_position=attractor_position)
+        super(LinearSystem, self).__init__(attractor_position=attractor_position)
 
         if A_matrix is None:
             self.A_matrix = np.eye(self.dimension) * (-1)

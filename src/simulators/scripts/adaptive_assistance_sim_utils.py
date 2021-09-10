@@ -427,7 +427,7 @@ class RobotSE2(object):
         # print(action)
         # self.update_current_mode(action.mode_switch_action)
         combined_velocity = self._mode_conditioned_velocity(action.interface_signal)
-        # print(combined_velocity)
+        print("COMBINED", combined_velocity)
         self.robot.linearVelocity = [combined_velocity[0], combined_velocity[1]]
         self.robot.angularVelocity = combined_velocity[2]
 
