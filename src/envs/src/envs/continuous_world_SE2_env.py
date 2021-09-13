@@ -440,12 +440,16 @@ class ContinuousWorldSE2Env(object):
                 break
 
         if in_obstacle:
+            print("In obstacle")
             return True
         else:
             return False
 
     def get_robot_position(self):
         return self.robot.get_position()
+
+    def get_mode_conditioned_velocity(self, interface_signal):
+        return self.robot.mode_conditioned_velocity(interface_signal)
 
     def step(self, input_action):
         prev_robot_position = self.robot.get_position()

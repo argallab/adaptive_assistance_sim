@@ -1,4 +1,5 @@
 int32 num_obstacles
+string pfield_id
 CuboidObs[] obs_descs
 ---
 bool status

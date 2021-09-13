@@ -412,7 +412,7 @@ class RobotSE2(object):
                     self.current_mode = 1
                 return True
 
-    def _mode_conditioned_velocity(self, velocity_action):
+    def mode_conditioned_velocity(self, velocity_action):
         assert len(velocity_action) == self.mode_set_type.value  # dimensinality of the interface command
         _allowed_control_dimensions = [int(cd) - 1 for cd in str(self.mode_set[self.current_mode])]
         _all_control_dimensions = list(range(self.robot_dim))  # for velocity control
@@ -426,11 +426,7 @@ class RobotSE2(object):
         return true_velocity
 
     # transition
-    def step(self, action):
-        # print(action)
-        # self.update_current_mode(action.mode_switch_action)
-        combined_velocity = self._mode_conditioned_velocity(action.interface_signal)
-        print("COMBINED", combined_velocity)
+    def step(self, combined_velocity):
         self.robot.linearVelocity = [combined_velocity[0], combined_velocity[1]]
         self.robot.angularVelocity = combined_velocity[2]
 

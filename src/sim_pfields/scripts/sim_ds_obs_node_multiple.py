@@ -2,6 +2,7 @@
 # Code developed by Deepak Gopinath*, Mahdieh Nejati Javaremi* in February 2020. Copyright (c) 2020. Deepak Gopinath, Mahdieh Nejati Javaremi, Argallab. (*) Equal contribution
 
 import rospy
+import collections
 import numpy as np
 import time
 import warnings
@@ -19,29 +20,30 @@ from sim_pfields.srv import AttractorPos, AttractorPosRequest, AttractorPosRespo
 from sim_pfields.srv import ComputeVelocity, ComputeVelocityRequest, ComputeVelocityResponse
 
 
-class SimPFields(object):
+class SimPFieldsMultiple(object):
     def __init__(self):
-        rospy.init_node("sim_pfields")
-        self.environment = GradientContainer()
-        self.num_obstacles = 0
-        self.obs_descs = []
+        rospy.init_node("sim_pfields_multiple")
+        self.environment_dict = collections.OrderedDict()
+        self.num_obstacles_dict = collections.OrderedDict()
+        self.obs_descs_dict = collections.OrderedDict()
 
-        self.initial_ds_system = None
+        self.initial_ds_system_dict = collections.OrderedDict()
         self.vel_scale_factor = 2.0
 
-        rospy.Service("/sim_pfields/init_obstacles", CuboidObsList, self.populate_environment)
-        rospy.Service("/sim_pfields/update_ds", AttractorPos, self.update_ds)
-        rospy.Service("/sim_pfields/compute_velocity", ComputeVelocity, self.compute_velocity)
+        rospy.Service("/sim_pfields_multiple/init_obstacles", CuboidObsList, self.populate_environment)
+        rospy.Service("/sim_pfields_multiple/update_ds", AttractorPos, self.update_ds)
+        rospy.Service("/sim_pfields_multiple/compute_velocity", ComputeVelocity, self.compute_velocity)
 
     def populate_environment(self, req):
         print("In POPULATE ENVIRONMENT service")
-        self.num_obstacles = req.num_obstacles
-        self.obs_descs = req.obs_descs  # List of CuboidObss
-        assert self.num_obstacles == len(self.obs_descs)
-        self.environment = GradientContainer()
-        for i in range(self.num_obstacles):
+        pfield_id = req.pfield_id
+        num_obstacles = req.num_obstacles
+        self.obs_descs_dict[pfield_id] = req.obs_descs  # List of CuboidObss
+        assert num_obstacles == len(self.obs_descs_dict[pfield_id])
+        self.environment_dict[pfield_id] = GradientContainer()
+        for i in range(num_obstacles):
             # if no obstacles then self.environment will be []
-            obs_desc = self.obs_descs[i]  # CuboidObs
+            obs_desc = self.obs_descs_dict[pfield_id][i]  # CuboidObs
             center_position = obs_desc.center_position
             orientation = obs_desc.orientation
             axes_length = obs_desc.axes_length
@@ -53,30 +55,32 @@ class SimPFields(object):
                 axes_length=axes_length,
                 is_boundary=is_boundary,
             )
-            self.environment.append(cuboid_obs)
+            self.environment_dict[pfield_id].append(cuboid_obs)
 
         response = CuboidObsListResponse()
         response.status = True
-        print("ENVIRONMENT ", self.environment.list)
+        print("ENVIRONMENT ", self.environment_dict[pfield_id].list)
         return response
 
     def update_ds(self, req):
         print("In UPDATE DS service")
+        pfield_id = req.pfield_id
         attractor_position = req.attractor_position
         print("ATTRACTOR POSITION ", attractor_position)
-        self.initial_ds_system = None
-        self.initial_ds_system = LinearSystem(attractor_position=np.array(attractor_position))
+        self.initial_ds_system_dict[pfield_id] = LinearSystem(attractor_position=np.array(attractor_position))
         response = AttractorPosResponse()
         response.success = True
+        print("Current inital ds dict ", self.initial_ds_system_dict)
         return response
 
     def compute_velocity(self, req):
 
         current_pos = req.current_pos
-        dynamical_system = self.initial_ds_system.evaluate
+        pfield_id = req.pfield_id
+        dynamical_system = self.initial_ds_system_dict[pfield_id].evaluate
         obs_avoidance_func = obs_avoidance_interpolation_moving
-        pos_attractor = self.initial_ds_system.attractor_position
-        obs = self.environment
+        pos_attractor = self.initial_ds_system_dict[pfield_id].attractor_position
+        obs = self.environment_dict[pfield_id]
 
         dim = 2
         vector_field_only_outside = True
@@ -134,5 +138,5 @@ class SimPFields(object):
 
 
 if __name__ == "__main__":
-    SimPFields()
+    SimPFieldsMultiple()
     rospy.spin()

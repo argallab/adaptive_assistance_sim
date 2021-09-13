@@ -15,6 +15,7 @@ from std_msgs.msg import MultiArrayDimension, String, Int8
 from teleop_nodes.msg import InterfaceSignal
 from simulators.msg import State
 from simulators.srv import InitBelief, InitBeliefRequest, InitBeliefResponse
+from inference_engine.msg import BeliefInfo
 from teleop_nodes.srv import SetMode, SetModeRequest, SetModeResponse
 from mdp.mdp_discrete_SE2_gridworld_with_modes import MDPDiscreteSE2GridWorldWithModes
 from pyglet.window import key
@@ -32,7 +33,7 @@ from adaptive_assistance_sim_utils import *
 GRID_WIDTH = 10
 GRID_HEIGHT = 10
 NUM_ORIENTATIONS = 8
-NUM_GOALS = 1
+NUM_GOALS = 3
 OCCUPANCY_LEVEL = 0.1
 
 SPARSITY_FACTOR = 0.0
@@ -59,6 +60,7 @@ class Simulator(object):
         self.input_action["full_control_signal"] = user_vel
 
         rospy.Subscriber("/user_vel", InterfaceSignal, self.joy_callback)
+        rospy.Subscriber("/belief_info", BeliefInfo, self.belief_info_callback)
         self.trial_index = 0
 
         self.env_params = None
@@ -84,18 +86,18 @@ class Simulator(object):
         print "TRAINING BLOCK FILENAME and IS TRAINING MODE", self.testing_block_filename, self.training
 
         rospy.loginfo("Waiting for sim_pfields node")
-        rospy.wait_for_service("/sim_pfields/init_obstacles")
-        rospy.wait_for_service("/sim_pfields/update_ds")
-        rospy.wait_for_service("/sim_pfields/compute_velocity")
+        rospy.wait_for_service("/sim_pfields_multiple/init_obstacles")
+        rospy.wait_for_service("/sim_pfields_multiple/update_ds")
+        rospy.wait_for_service("/sim_pfields_multiple/compute_velocity")
         rospy.loginfo("sim pfields node services found! ")
 
-        self.init_obstacles_srv = rospy.ServiceProxy('/sim_pfields/init_obstacles', CuboidObsList)
+        self.init_obstacles_srv = rospy.ServiceProxy('/sim_pfields_multiple/init_obstacles', CuboidObsList)
         self.init_obstacles_request = CuboidObsListRequest()
 
-        self.update_attractor_ds_srv = rospy.ServiceProxy('/sim_pfields/update_ds', AttractorPos)
+        self.update_attractor_ds_srv = rospy.ServiceProxy('/sim_pfields_multiple/update_ds', AttractorPos)
         self.update_attractor_ds_request = AttractorPosRequest()
 
-        self.compute_velocity_srv = rospy.ServiceProxy('/sim_pfields/compute_velocity', ComputeVelocity)
+        self.compute_velocity_srv = rospy.ServiceProxy('/sim_pfields_multiple/compute_velocity', ComputeVelocity)
         self.compute_velocity_request = ComputeVelocityRequest()
 
         self.terminate = False
@@ -124,12 +126,11 @@ class Simulator(object):
                 mdp_env_params['cell_size']['y'] = (world_bounds["yrange"]["ub"] - world_bounds["yrange"]["lb"]) / mdp_env_params['grid_height']
                 
 
-                self._init_pfield_obs_desc(mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
+                # self._init_pfield_obs_desc(mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
 
                 self.env_params = dict()
                 self.env_params["all_mdp_env_params"] = mdp_env_params
                 
-
                 self.env_params["world_bounds"] = world_bounds
 
                 mdp_list = self.create_mdp_list(self.env_params["all_mdp_env_params"])
@@ -165,7 +166,9 @@ class Simulator(object):
                 self.env_params["goal_poses"] = self._generate_continuous_goal_poses(
                     mdp_env_params["all_goals"], mdp_env_params["cell_size"], self.env_params["world_bounds"]
                 )
-                self._init_goal_attractor_pose(self.env_params['goal_poses'][0])
+                # self._init_goal_attractor_pose(self.env_params['goal_poses'][0])
+
+                self._init_pfields(self.env_params['goal_poses'], mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
                 print('cell size ', mdp_env_params["cell_size"] )
                 self.env_params['assistance_type'] = 1
             else:
@@ -187,8 +190,6 @@ class Simulator(object):
         self.init_belief_request = InitBeliefRequest()
         self.init_belief_request.num_goals = self.env_params["num_goals"]
         status = self.init_belief_srv(self.init_belief_request)
-        
-        
 
         #init pfield nodes with 
         r = rospy.Rate(100)
@@ -200,6 +201,8 @@ class Simulator(object):
         is_done = False
         first_trial = True
         self.start = False
+
+        self.p_g_given_phm = (1.0/self.env_params['num_goals']) * np.ones(self.env_params['num_goals']) 
 
         while not rospy.is_shutdown():
             if not self.start:
@@ -230,20 +233,27 @@ class Simulator(object):
                 
                 robot_continuous_position = self.env.get_robot_position()
                 self.compute_velocity_request.current_pos  = robot_continuous_position
+                self.compute_velocity_request.pfield_id = 'goal_0'
                 vel_response = self.compute_velocity_srv(self.compute_velocity_request)
-                # self.input_action['full_control_signal'] = vel_response.velocity_final
-
-                # compute mode_conditioned_velocity for self.input_action['human'] directly access the self.robot._mode_conditioned_velocity via env
-                # this would 3D vel.
-                # Blend the above with vel_response.velocity_final. TODO add rotational vel to the sim_pfield_node
-                # Update step function in robot to deal with full 3D vel. 
-                print('velocity', vel_response.velocity_final)
-                
+                human_vel = self.env.get_mode_conditioned_velocity(self.input_action['human'].interface_signal) #robot_dim
+                autonomy_vel = list(vel_response.velocity_final)
+                # print('autonomy vel', vel_response)
                 #get current robot_pose
+                
                 #get current belief. and entropy of belief. compute argmax g
+                self._get_most_confident_goal()
+                self._compute_alpha()
                 #get pfield vel for argmax g and current robot pose
                 #blend velocity by combining it with user vel.
                 # apply blend velocity to robot. 
+                blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
+                # print('human_vel', human_vel)
+                # print('autonomy_velocity', autonomy_vel)
+                # print('blend_vel', blend_vel)
+                # print('         ')
+                self.input_action['full_control_signal'] = blend_vel
+                
+                
                 # if uservel is Null for 2 seconds, activate disamb mode. 
                 # # get current discrete state, compute nearby states.
                 # # compute MI. get disamb discrete state
@@ -300,7 +310,10 @@ class Simulator(object):
         return robot_position, robot_orientation, start_mode
 
     def joy_callback(self, msg):
-        self.input_action['full_control_signal'] = msg
+        self.input_action['human'] = msg
+    
+    def belief_info_callback(self, msg):
+        self.p_g_given_phm = np.array(msg.p_g_given_phm)
         # print(msg)
 
     def shutdown_hook(self, msg_string="DONE"):
@@ -366,18 +379,77 @@ class Simulator(object):
         mdp_env_params['dynamic_obs_specs'] = dynamics_obs_specs
 
         return mdp_env_params
+    def _blend_velocities(self, human_vel, autonomy_vel):
+        self.alpha = 0.5
+        # if np.linalg.norm(human_vel) > 1e-3:
+        blend_vel = self.alpha * autonomy_vel + (1.0-self.alpha)*human_vel
+        # else:
+        #     blend_vel = np.zeros_like(human_vel)
+        return blend_vel
 
-    def _init_goal_attractor_pose(self, continuous_goal_pose):
-        self.update_attractor_ds_request.attractor_position = continuous_goal_pose[:-1]
-        self.update_attractor_ds_srv(self.update_attractor_ds_request)
+    def _init_pfields(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds):
+        print('CONT GOAL POSES ', continuous_goal_poses)
+        cell_size_x = cell_size['x']
+        cell_size_y = cell_size['y']
+        num_goals = len(continuous_goal_poses)
+        common_obs_descs_list = self._init_pfield_obs_desc(obs_param_dict_list, cell_size, world_bounds)
+        # init pfield for each goal. 
+        for pfield_id, goal_pose in enumerate(continuous_goal_poses):
+            self.init_obstacles_request.num_obstacles = len(obs_param_dict_list) + num_goals - 1 # common obstacles + other_goals
+            self.init_obstacles_request.obs_descs = []
+            self.init_obstacles_request.obs_descs = copy.deepcopy(common_obs_descs_list)
+            self.init_obstacles_request.pfield_id = 'goal_' + str(pfield_id)
+            #for loop through all OTHER goals. Create obs_desc for each those other goals. append to obs_descs. 
+            for other_goal_pose in continuous_goal_poses:
+                if np.all(np.equal(other_goal_pose[:-1], goal_pose[:-1])):
+                    #if other goal position is same current goal position skip and continue
+                    continue
+                #create obs_desc for other goal pose
+                other_goal_obs_desc = CuboidObs()
+
+                bottom_left_cell_x = other_goal_pose[0]
+                bottom_left_cell_y = other_goal_pose[1]
+                true_width_of_obs_in_cells = 1
+                true_height_of_obs_in_cells = 1
+
+                center_position_x = (bottom_left_cell_x  + true_width_of_obs_in_cells * 0.5) * cell_size_x + world_bounds["xrange"]["lb"]
+                center_position_y = (bottom_left_cell_y  + true_height_of_obs_in_cells * 0.5) * cell_size_y + world_bounds["yrange"]["lb"]
+                axes_0 = true_width_of_obs_in_cells * cell_size_x #assuming axis 0 is the width
+                axes_1 = true_height_of_obs_in_cells * cell_size_y #assuming axis 1 is height
+
+                # populate the obs desc msg for other goal pose
+                other_goal_obs_desc.center_position = [center_position_x, center_position_y]
+                other_goal_obs_desc.orientation = 0.0
+                other_goal_obs_desc.axes_length = [axes_0, axes_1]
+                other_goal_obs_desc.is_boundary = False
+
+                self.init_obstacles_request.obs_descs.append(other_goal_obs_desc)
+            
+            assert len(self.init_obstacles_request.obs_descs) == self.init_obstacles_request.num_obstacles
+            self.init_obstacles_srv(self.init_obstacles_request)
+
+            #init obs_setrvice with pfield_id
+            #init attractor with goal_pose[:-1] and pfield_id
+            self.update_attractor_ds_request.pfield_id = 'goal_' + str(pfield_id)
+            self.update_attractor_ds_request.attractor_position = goal_pose[:-1]
+            self.update_attractor_ds_srv(self.update_attractor_ds_request)
+
+    # def _init_goal_attractor_pose(self, continuous_goal_pose):
+    #     self.update_attractor_ds_request.attractor_position = continuous_goal_pose[:-1]
+    #     self.update_attractor_ds_srv(self.update_attractor_ds_request)
+    def _get_most_confident_goal(self):
+        #argmax of self.p_g_given_phm
+        #self.current_goal_id = 'goal_' + argmax id
+        pass
+    
+    def _compute_alpha(self, confident_goal_prob):
+        self.alpha = 0.2
 
     def _init_pfield_obs_desc(self, obs_param_dict_list, cell_size, world_bounds):
         cell_size_x = cell_size['x']
         cell_size_y = cell_size['y']
         
-        self.init_obstacles_request.num_obstacles = len(obs_param_dict_list)
-        self.init_obstacles_request.obs_descs = []
-
+        common_obs_descs_list = [] 
         for obs_param_dict in obs_param_dict_list:
 
             obs_desc = CuboidObs()
@@ -388,8 +460,8 @@ class Simulator(object):
             true_width_of_obs_in_cells = obs_param_dict['true_width_of_obs_in_cells']
             true_height_of_obs_in_cells = obs_param_dict['true_height_of_obs_in_cells']
 
-            center_position_x = (bottom_left_cell_x  + true_width_of_obs_in_cells * 0.5) * cell_size_x
-            center_position_y = (bottom_left_cell_y  + true_height_of_obs_in_cells * 0.5) * cell_size_y
+            center_position_x = (bottom_left_cell_x  + true_width_of_obs_in_cells * 0.5) * cell_size_x + world_bounds["xrange"]["lb"]
+            center_position_y = (bottom_left_cell_y  + true_height_of_obs_in_cells * 0.5) * cell_size_y + world_bounds["yrange"]["lb"]
             axes_0 = true_width_of_obs_in_cells * cell_size_x #assuming axis 0 is the width
             axes_1 = true_height_of_obs_in_cells * cell_size_y #assuming axis 1 is height
             
@@ -399,9 +471,11 @@ class Simulator(object):
             obs_desc.axes_length = [axes_0, axes_1]
             obs_desc.is_boundary = False
 
-            self.init_obstacles_request.obs_descs.append(obs_desc)
+            common_obs_descs_list.append(obs_desc)
         
-        self.init_obstacles_srv(self.init_obstacles_request)
+        # self.init_obstacles_srv(self.init_obstacles_request)
+
+        return common_obs_descs_list
 
 
     def _create_rectangular_gw_obstacles(self, width, height, num_obstacle_patches):
