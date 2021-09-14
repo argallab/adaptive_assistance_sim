@@ -109,7 +109,7 @@ class Simulator(object):
                 mdp_env_params = self._create_mdp_env_param_dict()
                 print('DYN OBS SPECS', mdp_env_params['dynamic_obs_specs'])
 
-                # _init_pfields_obstacles(mdp_env_params['dynamic_obs_specs'])
+                # _init_goal_pfields_obstacles(mdp_env_params['dynamic_obs_specs'])
                 mdp_env_params["cell_size"] = collections.OrderedDict()
 
                 # create mdp list here. Select start positoin from valid stats.
@@ -168,7 +168,8 @@ class Simulator(object):
                 )
                 # self._init_goal_attractor_pose(self.env_params['goal_poses'][0])
 
-                self._init_pfields(self.env_params['goal_poses'], mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
+                self._init_goal_pfields(self.env_params['goal_poses'], mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
+                self._init_disamb_pfield(mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
                 print('cell size ', mdp_env_params["cell_size"] )
                 self.env_params['assistance_type'] = 1
             else:
@@ -408,7 +409,20 @@ class Simulator(object):
             blend_vel = np.zeros_like(human_vel)
         return blend_vel
 
-    def _init_pfields(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds):
+    def _init_disamb_pfield(self, obs_param_dict_list, cell_size, world_bounds):
+        common_obs_descs_list = self._init_pfield_obs_desc(obs_param_dict_list, cell_size, world_bounds)
+        self.init_obstacles_request.num_obstacles = len(obs_param_dict_list)
+        self.init_obstacles_request.obs_descs = []
+        self.init_obstacles_request.obs_descs = copy.deepcopy(common_obs_descs_list)
+        self.init_obstacles_request.pfield_id = 'disamb'
+        assert len(self.init_obstacles_request.obs_descs) == self.init_obstacles_request.num_obstacles
+        self.init_obstacles_srv(self.init_obstacles_request)
+
+        self.update_attractor_ds_request.pfield_id = 'disamb'
+        self.update_attractor_ds_request.attractor_position = [0.0, 0.0] #dummy attractor pos. Will be update after disamb computation
+        self.update_attractor_ds_srv(self.update_attractor_ds_request)
+
+    def _init_goal_pfields(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds):
         print('CONT GOAL POSES ', continuous_goal_poses)
         cell_size_x = cell_size['x']
         cell_size_y = cell_size['y']
