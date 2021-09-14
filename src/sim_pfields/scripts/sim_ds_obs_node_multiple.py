@@ -28,7 +28,7 @@ class SimPFieldsMultiple(object):
         self.obs_descs_dict = collections.OrderedDict()
 
         self.initial_ds_system_dict = collections.OrderedDict()
-        self.vel_scale_factor = 2.0
+        self.vel_scale_factor = 5.0
 
         rospy.Service("/sim_pfields_multiple/init_obstacles", CuboidObsList, self.populate_environment)
         rospy.Service("/sim_pfields_multiple/update_ds", AttractorPos, self.update_ds)
@@ -131,7 +131,7 @@ class SimPFieldsMultiple(object):
 
         response = ComputeVelocityResponse()
         vel = np.array([float(dx1_noColl), float(dx2_noColl), 0.0])
-        vel = vel / np.linalg.norm(vel)
+        vel = self.vel_scale_factor * (vel / np.linalg.norm(vel))
         response.velocity_final = vel
 
         return response

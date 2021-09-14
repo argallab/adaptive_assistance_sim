@@ -174,6 +174,17 @@ class Simulator(object):
             else:
                 pass
         
+        #alpha from confidence function parameters
+        self.confidence_threshold = 0.4
+        self.confidence_max = 0.8
+        self.alpha_max = 0.8
+        if self.confidence_max != self.confidence_threshold:
+            self.confidence_slope = float(self.alpha_max)/(self.confidence_max - self.confidence_threshold)
+        else:
+            self.confidence_slope = -1.0
+        
+        self.ENTROPY_THRESHOLD = 0.8
+
         # instantiate the environement
         self.env_params["start"] = False
         self.env = ContinuousWorldSE2Env(self.env_params)
@@ -231,19 +242,29 @@ class Simulator(object):
                             self.shutdown_hook("Reached end of training")
                             break
                 
-                robot_continuous_position = self.env.get_robot_position()
-                self.compute_velocity_request.current_pos  = robot_continuous_position
-                self.compute_velocity_request.pfield_id = 'goal_0'
-                vel_response = self.compute_velocity_srv(self.compute_velocity_request)
-                human_vel = self.env.get_mode_conditioned_velocity(self.input_action['human'].interface_signal) #robot_dim
-                autonomy_vel = list(vel_response.velocity_final)
+                
                 # print('autonomy vel', vel_response)
                 #get current robot_pose
                 
                 #get current belief. and entropy of belief. compute argmax g
-                self._get_most_confident_goal()
-                self._compute_alpha()
-                #get pfield vel for argmax g and current robot pose
+                inferred_goal_id_str, inferred_goal_prob = self._get_most_confident_goal()
+                human_vel = self.env.get_mode_conditioned_velocity(self.input_action['human'].interface_signal) #robot_dim
+                if inferred_goal_id_str is not None and inferred_goal_prob is not None:
+                    #get pfield vel for argmax g and current robot pose
+                    robot_continuous_position = self.env.get_robot_position()
+                    self.compute_velocity_request.current_pos  = robot_continuous_position
+                    self.compute_velocity_request.pfield_id = inferred_goal_id_str #get pfeild vel corresponding to inferred goal 
+                    vel_response = self.compute_velocity_srv(self.compute_velocity_request)
+                    autonomy_vel = list(vel_response.velocity_final)
+                    self.alpha = self._compute_alpha(inferred_goal_prob)
+                else:
+                    # no inferred goal
+                    autonomy_vel = list([0.0] * np.array(human_vel).shape[0]) #0.0 autonomy vel
+                    self.alpha = 0.0 #no autonomy, purely human vel
+                
+                print('ALPHA and GOAL ', self.alpha, inferred_goal_id_str)
+                print('HUMAN and AUTONOMY MAG ', np.linalg.norm(np.array(human_vel)), np.linalg.norm(np.array(autonomy_vel)))
+                
                 #blend velocity by combining it with user vel.
                 # apply blend velocity to robot. 
                 blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
@@ -381,10 +402,10 @@ class Simulator(object):
         return mdp_env_params
     def _blend_velocities(self, human_vel, autonomy_vel):
         self.alpha = 0.5
-        # if np.linalg.norm(human_vel) > 1e-3:
-        blend_vel = self.alpha * autonomy_vel + (1.0-self.alpha)*human_vel
-        # else:
-        #     blend_vel = np.zeros_like(human_vel)
+        if np.linalg.norm(human_vel) > 1e-5:
+            blend_vel = self.alpha * autonomy_vel + (1.0-self.alpha)*human_vel
+        else:
+            blend_vel = np.zeros_like(human_vel)
         return blend_vel
 
     def _init_pfields(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds):
@@ -438,12 +459,33 @@ class Simulator(object):
     #     self.update_attractor_ds_request.attractor_position = continuous_goal_pose[:-1]
     #     self.update_attractor_ds_srv(self.update_attractor_ds_request)
     def _get_most_confident_goal(self):
-        #argmax of self.p_g_given_phm
-        #self.current_goal_id = 'goal_' + argmax id
-        pass
+        p_g_given_phm_vector = self.p_g_given_phm + np.finfo(self.p_g_given_phm.dtype).tiny
+        uniform_distribution = np.array([1.0 / p_g_given_phm_vector.size] * p_g_given_phm_vector.size)
+        max_entropy = -np.dot(uniform_distribution, np.log2(uniform_distribution))
+        normalized_h_of_p_g_given_phm = -np.dot(p_g_given_phm_vector, np.log2(p_g_given_phm_vector)) / max_entropy
+        if normalized_h_of_p_g_given_phm <= self.ENTROPY_THRESHOLD:
+            inferred_goal_id = np.argmax(p_g_given_phm_vector)
+            goal_id_str = 'goal_' + str(inferred_goal_id)
+            inferred_goal_prob = p_g_given_phm_vector[inferred_goal_id]
+            return goal_id_str, inferred_goal_prob
+        else:
+            # if entropy not greater than threshold return None as there is no confident goal
+            return None, None
     
-    def _compute_alpha(self, confident_goal_prob):
-        self.alpha = 0.2
+    def _compute_alpha(self, inferred_goal_prob):
+        if self.confidence_slope != -1.0:
+            if inferred_goal_prob <= self.confidence_threshold:
+                return 0.0
+            elif inferred_goal_prob > self.confidence_threshold and inferred_goal_prob <= self.confidence_max:
+                return self.confidence_slope * (inferred_goal_prob - self.confidence_threshold)
+            elif inferred_goal_prob > self.confidence_max and inferred_goal_prob <= 1.0:
+                return self.alpha_max
+        else:
+            if inferred_goal_prob <= self.confidence_threshold:
+                return 0.0
+            else:
+                return self.alpha_max
+
 
     def _init_pfield_obs_desc(self, obs_param_dict_list, cell_size, world_bounds):
         cell_size_x = cell_size['x']
