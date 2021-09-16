@@ -10,6 +10,10 @@ import copy
 from scipy.stats import entropy
 import itertools
 
+# awt
+import time
+#global SPATIAL_WINDOW_HALF_LENGTH
+
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
 from generate_adaptive_assistance_trials import create_random_obstacles, create_random_goals, create_random_start_state
 from mdp.mdp_discrete_2d_gridworld_with_modes import MDPDiscrete2DGridWorldWithModes
@@ -54,7 +58,7 @@ MAX_PATCHES = 4
 GRID_WIDTH = 15
 GRID_HEIGHT = 30
 ENTROPY_THRESHOLD = 0.6
-SPATIAL_WINDOW_HALF_LENGTH = 3
+#SPATIAL_WINDOW_HALF_LENGTH = 3
 
 
 def visualize_grid(mdp):
@@ -286,8 +290,8 @@ def compute_mi(mdp_list, mdp_env_params, prior, states_for_disamb_computation=No
     kl_coeff = 0.8
     dist_coeff = 0.2
     for i, vs in enumerate(states_for_disamb_computation):
-        if i % 100 == 0:
-            print("Computing MI for ", vs)
+        # if i % 100 == 0:
+        #     print("Computing MI for ", vs)
         # trajectories for each candidate state.
         traj_list = collections.defaultdict(list)
         for i in range(num_trajectories):
@@ -357,9 +361,9 @@ def compute_mi(mdp_list, mdp_env_params, prior, states_for_disamb_computation=No
             avg_dist_for_valid_states_from_goals[vs]
         )
 
-    visualize_metrics_map(avg_mi_for_valid_states, mdp_list[0], title="MI")
-    visualize_metrics_map(avg_dist_for_valid_states_from_goals, mdp_list[0], title="DIST")
-    visualize_metrics_map(avg_total_reward_for_valid_states, mdp_list[0], title="TOTAL REWARD")
+    #visualize_metrics_map(avg_mi_for_valid_states, mdp_list[0], title="MI")
+    #visualize_metrics_map(avg_dist_for_valid_states_from_goals, mdp_list[0], title="DIST")
+    #visualize_metrics_map(avg_total_reward_for_valid_states, mdp_list[0], title="TOTAL REWARD")
 
     return avg_total_reward_for_valid_states
 
@@ -563,6 +567,11 @@ def simulate_turn_taking_and_inference():
 
 
 def _compute_spatial_window_around_current_state(current_state, mdp_list):
+    global SPATIAL_WINDOW_HALF_LENGTH
+
+    
+    print("\n\t" + str(SPATIAL_WINDOW_HALF_LENGTH))
+
     current_grid_loc = np.array(current_state[0:2])
     states_in_local_spatial_window = []
 
@@ -582,6 +591,59 @@ def _compute_spatial_window_around_current_state(current_state, mdp_list):
 
 
 if __name__ == "__main__":
-    simulate_human_2d_modes_mdp()
+
+    global SPATIAL_WINDOW_HALF_LENGTH
+
+    timing_dict = collections.OrderedDict()
+    timing_dict["sp_win_hl"] = {}
+    #timing_dict["sp_win_hl"] = {1 : [], 2 : [], 3 : [], 4 : [], 5 : [], 6 : [], 7 : [], 8 : [], 9 : [], 10 : [], 11 : [], 12 : [], 13 : [], 14 : [], 15: [], 16 : [], 17 : [], 18 : [], 19 : [], 20 : []}
+    
+    min_sp_win_hl = 1
+    max_sp_win_hl = 15
+    repeat_num = 10
+
+    for sp_win_hl_pop_idx in range(min_sp_win_hl, max_sp_win_hl+1):
+        timing_dict["sp_win_hl"][sp_win_hl_pop_idx] = {"durations" : [], "ave" : [], "stdev" : []}
+    
+    sp_win_hl_sweep_list = timing_dict["sp_win_hl"].keys()
+
+    print(range(len(sp_win_hl_sweep_list)))
+    
+    
+    
+
+
+    for sweep_idx in range(1, len(sp_win_hl_sweep_list)+1):
+        for repeat_idx in range(0, repeat_num):
+            SPATIAL_WINDOW_HALF_LENGTH = sp_win_hl_sweep_list[sweep_idx-1]
+            print("\n\t" + str(SPATIAL_WINDOW_HALF_LENGTH))
+            start_time = time.time()
+            simulate_human_2d_modes_mdp()
+            end_time = time.time()
+            duration = end_time - start_time
+            timing_dict["sp_win_hl"][sweep_idx]["durations"].append(duration)# = duration
+
+        duration_list = timing_dict["sp_win_hl"][sweep_idx]["durations"]
+        timing_dict["sp_win_hl"][sweep_idx]["ave"] = np.mean(duration_list)
+        timing_dict["sp_win_hl"][sweep_idx]["stdev"] = np.std(duration_list)
+
+        plt.plot(sweep_idx, timing_dict["sp_win_hl"][sweep_idx]["ave"], 'k*')
+        timing_dict["sp_win_hl"][sweep_idx]["stdev"]
+        plt.errorbar(sweep_idx, timing_dict["sp_win_hl"][sweep_idx]["ave"], timing_dict["sp_win_hl"][sweep_idx]["stdev"])
+
+
+        #plt.plot(SPATIAL_WINDOW_HALF_LENGTH, duration, 'ko')     
+
+    sp_win_hl_sweep_list.insert(0, 0)
+
+    print(timing_dict)
+    plt.xticks(range(len(sp_win_hl_sweep_list)+1), sp_win_hl_sweep_list)
+    plt.xlabel("SPATIAL_WINDOW_HALF_LENGTH")
+    plt.ylabel("run cycle duration (s)")
+    plt.show()
+
+    
+
+    #print("Seconds since start of run cycle: ", seconds)
     # simulate_turn_taking_and_inference()
     # check_vis_traj()

@@ -24,24 +24,24 @@ class DiscreteMDP(object):
         self.num_states = None
 
         self._define_mdp()
-        print('TOTAL NUM STATES', self.num_states)
+        #print('TOTAL NUM STATES', self.num_states)
 
         self.task_level_actions = collections.OrderedDict()
         self.action_id_to_task_level_action_map = collections.OrderedDict()
         self.task_level_action_to_action_id_map = collections.OrderedDict()
         self.create_action_dict()
         self.num_actions = len(self.task_level_actions) #discrte actions
-        print('TOTAL NUM ACTIONS', self.num_actions)
-        print('CREATING TRANSITION MATRIX')
+        #print('TOTAL NUM ACTIONS', self.num_actions)
+        #print('CREATING TRANSITION MATRIX')
         self._create_transition_matrix()
-        print('CREATING REWARD MATRIX')
+        #print('CREATING REWARD MATRIX')
         self._create_reward_matrix()
-        print('SOLVING MDP')
+        #print('SOLVING MDP')
         self._solve_mdp()
     
     def _solve_mdp(self):
         if self.vs_and_policy_dict is None:
-            print('Initializing instance of RL solver')
+            #print('Initializing instance of RL solver')
             if self.rl_algo_type == RlAlgoType.ValueIteration:
                 self.rl_algo = mdptoolbox.mdp.ValueIteration(self.P, self.R, self.gamma)
             elif self.rl_algo_type == RlAlgoType.PolicyIteration:
@@ -49,12 +49,12 @@ class DiscreteMDP(object):
             elif self.rl_algo_type == RlAlgoType.QLearning:
                 self.rl_algo = mdptoolbox.mdp.QLearning(self.P, self.R, self.gamma, n_iter=100000)
             
-            print('Running rl algo')
+            #print('Running rl algo')
             self.rl_algo.run()
             self.policy = self.rl_algo.policy
             self.value_function = self.rl_algo.V
         else:
-            print('Loading V and Policy from file')
+            #print('Loading V and Policy from file')
             assert 'value_function' in self.vs_and_policy_dict
             assert 'policy' in self.vs_and_policy_dict
             self.value_function = self.vs_and_policy_dict['value_function']
