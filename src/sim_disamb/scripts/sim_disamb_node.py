@@ -7,3 +7,11 @@
 # have parallel processing support to speed up the computation
 # result is the disamb discrete state
 # simulator will take this discrete disamb state, convert to continuous and update the disamb pfields' attractor. And
+
+#!/usr/bin/env python
+
+import rospy
+import collections
+import numpy as np
+import time
+import warnings

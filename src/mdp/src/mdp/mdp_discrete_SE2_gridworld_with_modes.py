@@ -350,6 +350,24 @@ class MDPDiscreteSE2GridWorldWithModes(DiscreteMDP):
 
         return state_coord  # tuple (x,y, t mode)
 
+    def get_goal_state(self):
+        return self.goal_state  # (x,y,t)
+
+    def get_location(self, state):
+        return (state[Dim.X.value], state[Dim.Y.value])  # (x,y) position
+
+    def get_all_state_coords(self):
+        # return the list of all states as coords except obstacles and goals.
+        state_coord_list = []
+        for state_id in self.empty_cell_id_list:
+            state_coord = self._convert_1D_state_to_grid_coords(state_id)
+            if self._check_if_state_coord_is_goal_state(state_coord):
+                continue
+            else:
+                state_coord_list.append(state_coord)
+
+        return state_coord_list
+
     def get_next_state_from_state_action(self, state, task_level_action):
         # state is a 4d tuple (x,y t, mode)
         # action is string which is in [movep, moven, mode_r, mode_l]
