@@ -5,6 +5,7 @@ import rospy
 import time
 from sensor_msgs.msg import Joy
 from envs.continuous_world_SE2_env import ContinuousWorldSE2Env
+from disamb_algo.discrete_mi_disamb_algo import DiscreteMIDisambAlgo
 from sim_pfields.msg import CuboidObs
 from sim_pfields.srv import CuboidObsList, CuboidObsListRequest,CuboidObsListResponse
 from sim_pfields.srv import AttractorPos, AttractorPosRequest, AttractorPosResponse
@@ -172,6 +173,11 @@ class Simulator(object):
                 self._init_disamb_pfield(mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
                 print('cell size ', mdp_env_params["cell_size"] )
                 self.env_params['assistance_type'] = 1
+
+                #disamb algo specific params
+                self.env_params['spatial_window_half_length'] = 3 #number of cells
+                # kl_coeff, num_modes,
+
             else:
                 pass
         
@@ -193,6 +199,9 @@ class Simulator(object):
         self.env.initialize_viewer()
         self.env.reset()
         self.env.viewer.window.on_key_press = self.key_press
+
+        self.disamb_algo = DiscreteMIDisambAlgo(self.env_params, subject_id)
+
 
         rospy.loginfo("Waiting for goal inference node")
         rospy.wait_for_service("/goal_inference/init_belief")
@@ -277,8 +286,7 @@ class Simulator(object):
                 
                 
                 # if uservel is Null for 2 seconds, activate disamb mode. 
-                # # get current discrete state, compute nearby states.
-                # # compute MI. get disamb discrete state
+                # # get disamb discrete state with self.disamb_algo.get_local_disamb_state(belief, current_state)
                 # # convert to continuous disamb state (centre of disamb discrete state)
                 # # change goal for disamb pfield
                 # # get disamb pfield vel. Continue in disamb mode, until current robot_pose is eps within contonuious disamb state

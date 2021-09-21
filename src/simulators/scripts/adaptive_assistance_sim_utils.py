@@ -162,6 +162,7 @@ TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP = collections.OrderedDict(
 TRUE_INTERFACE_ACTION_TO_TASK_ACTION_MAP = collections.OrderedDict(
     {v: k for k, v in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.items()}
 )
+INTERFACE_LEVEL_ACTIONS_TO_NUMBER_ID = {"sp": 0, "ss": 1, "hp": 2, "hs": 3}
 
 
 class AssistanceType(Enum):
