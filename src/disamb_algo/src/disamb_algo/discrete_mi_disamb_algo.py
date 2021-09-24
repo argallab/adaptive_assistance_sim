@@ -17,6 +17,7 @@ from adaptive_assistance_sim_utils import TRUE_ACTION_TO_COMMAND, LOW_LEVEL_COMM
 from adaptive_assistance_sim_utils import (
     AssistanceType,
     TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP,
+    TRUE_INTERFACE_ACTION_TO_TASK_ACTION_MAP,
     INTERFACE_LEVEL_ACTIONS,
     TASK_LEVEL_ACTIONS,
     INTERFACE_LEVEL_ACTIONS_TO_NUMBER_ID,
@@ -43,16 +44,17 @@ class DiscreteMIDisambAlgo(object):
         self.SPATIAL_WINDOW_HALF_LENGTH = self.env_params["spatial_window_half_length"]
         self.P_PHI_GIVEN_A = None
         self.P_PHM_GIVEN_PHI = None
-        self.PHI_SAPRSE_LEVEL = 0.0
+        self.PHI_SPARSE_LEVEL = 0.0
         self.PHM_SPARSE_LEVEL = 0.0
         self.DEFAULT_PHI_GIVEN_A_NOISE = 0.1
         self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.1
 
-        self.num_sample_trajectories = self.env_params.get("num_sample_trajectories", 50)
+        self.num_sample_trajectories = self.env_params.get("num_sample_trajectories", 250)
         self.mode_set_type = self.env_params["mode_set_type"]
         self.robot_type = self.env_params["robot_type"]
         self.mode_set = CARTESIAN_MODE_SET_OPTIONS[self.robot_type][self.mode_set_type]
         self.num_modes = len(self.mode_set)
+        self.num_discrete_orientations = self.mdp_env_params["num_discrete_orientations"]
 
         self.num_modes = self.env_params.get("num_modes", 3)
         self.kl_coeff = self.env_params.get("kl_coeff", 0.8)
@@ -94,15 +96,19 @@ class DiscreteMIDisambAlgo(object):
     def get_local_disamb_state(self, prior, current_state):
         # compute window around current_state
         states_in_local_spatial_window = self._compute_spatial_window_around_current_state(current_state)
-        # perform mi computation for all states in spatial window
+        print(states_in_local_spatial_window)
+        print(len(states_in_local_spatial_window))
+        # # perform mi computation for all states in spatial window
         self._compute_mi(prior, states_in_local_spatial_window)
-        # pick argmax among this list
-
-        # return discrete state
-        pass
+        # # pick argmax among this list
+        max_disamb_state = self._max_disambiguating_state()
+        return max_disamb_state
 
     def _max_disambiguating_state(self):
-        pass
+        rewards = self.avg_total_reward_for_valid_states.values()
+        amax = np.argmax(rewards)
+        max_disamb_state = list(self.avg_total_reward_for_valid_states.keys())[amax]
+        return max_disamb_state
 
     def _compute_mi(self, prior, states_for_disamb_computation=None):
         self.avg_mi_for_valid_states = collections.OrderedDict()
@@ -112,7 +118,7 @@ class DiscreteMIDisambAlgo(object):
         assert len(prior) == self.num_goals
 
         for i, vs in enumerate(states_for_disamb_computation):
-            print("Computing MI for ", vs)
+            # print("Computing MI for ", vs)
             traj_list = collections.defaultdict(list)
             for t in range(self.num_sample_trajectories):
                 sampled_goal_index = np.random.choice(self.num_goals)
@@ -179,8 +185,9 @@ class DiscreteMIDisambAlgo(object):
             # )
 
     def _compute_spatial_window_around_current_state(self, current_state):
-        current_grid_loc = np.array(current_state[0:2])
+        current_grid_loc = np.array(current_state[0:2])  # (x,y)
         states_in_local_spatial_window = []
+        current_orientation = current_state[2]
 
         # Add todo to ensure that self.mdp list is not None
         all_state_coords = self.mdp_list[0].get_all_state_coords()
@@ -189,9 +196,9 @@ class DiscreteMIDisambAlgo(object):
             range(-self.SPATIAL_WINDOW_HALF_LENGTH + 1, self.SPATIAL_WINDOW_HALF_LENGTH),
         )
         for wc in window_coordinates:
-            vs = current_grid_loc + np.array(wc)
-            for mode in range(self.num_modes):  # for 2d
-                vs_mode = (vs[0], vs[1], mode + 1)
+            vs = current_grid_loc + np.array(wc)  # 2d grid loc
+            for mode in range(self.num_modes):  #
+                vs_mode = (vs[0], vs[1], current_orientation, mode + 1)
                 if vs_mode in all_state_coords:
                     states_in_local_spatial_window.append(vs_mode)
 

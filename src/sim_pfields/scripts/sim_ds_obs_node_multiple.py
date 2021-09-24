@@ -66,11 +66,11 @@ class SimPFieldsMultiple(object):
         print("In UPDATE DS service")
         pfield_id = req.pfield_id
         attractor_position = req.attractor_position
-        print("ATTRACTOR POSITION ", attractor_position)
+        print("ATTRACTOR POSITION for ", attractor_position)
         self.initial_ds_system_dict[pfield_id] = LinearSystem(attractor_position=np.array(attractor_position))
         response = AttractorPosResponse()
         response.success = True
-        print("Current inital ds dict ", self.initial_ds_system_dict)
+
         return response
 
     def compute_velocity(self, req):

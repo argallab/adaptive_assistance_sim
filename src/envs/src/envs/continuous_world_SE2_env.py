@@ -445,6 +445,10 @@ class ContinuousWorldSE2Env(object):
         else:
             return False
 
+    def get_robot_current_discrete_state(self):
+        current_discrete_mdp_state = rospy.get_param("current_discrete_mdp_state", [0, 0, 0, 1])
+        return tuple(current_discrete_mdp_state)  # (x,y,t,m)
+
     def get_robot_position(self):
         return self.robot.get_position()
 
@@ -468,6 +472,7 @@ class ContinuousWorldSE2Env(object):
         return (
             self.robot.get_position(),
             self.robot.get_angle(),
+            self.current_discrete_mdp_state,
             # [user_vel[0], user_vel[1]],
             # -user_vel[2],
             # self.current_mode,

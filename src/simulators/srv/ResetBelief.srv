@@ -1,0 +1,4 @@
+int32 num_goals
+float64[] p_g_given_phm
+---
+bool status

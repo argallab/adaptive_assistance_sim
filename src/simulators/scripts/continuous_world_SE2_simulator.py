@@ -16,6 +16,8 @@ from std_msgs.msg import MultiArrayDimension, String, Int8
 from teleop_nodes.msg import InterfaceSignal
 from simulators.msg import State
 from simulators.srv import InitBelief, InitBeliefRequest, InitBeliefResponse
+from simulators.srv import ResetBelief, ResetBeliefRequest, ResetBeliefResponse
+
 from inference_engine.msg import BeliefInfo
 from teleop_nodes.srv import SetMode, SetModeRequest, SetModeResponse
 from mdp.mdp_discrete_SE2_gridworld_with_modes import MDPDiscreteSE2GridWorldWithModes
@@ -35,7 +37,7 @@ GRID_WIDTH = 10
 GRID_HEIGHT = 10
 NUM_ORIENTATIONS = 8
 NUM_GOALS = 3
-OCCUPANCY_LEVEL = 0.1
+OCCUPANCY_LEVEL = 0.0
 
 SPARSITY_FACTOR = 0.0
 RAND_DIRECTION_FACTOR = 0.1
@@ -205,12 +207,17 @@ class Simulator(object):
 
         rospy.loginfo("Waiting for goal inference node")
         rospy.wait_for_service("/goal_inference/init_belief")
+        rospy.wait_for_service("/goal_inference/reset_belief")
         rospy.loginfo("goal inference node service found! ")
 
         self.init_belief_srv = rospy.ServiceProxy("/goal_inference/init_belief", InitBelief)
         self.init_belief_request = InitBeliefRequest()
         self.init_belief_request.num_goals = self.env_params["num_goals"]
         status = self.init_belief_srv(self.init_belief_request)
+
+        self.reset_belief_srv = rospy.ServiceProxy("/goal_inference/reset_belief", ResetBelief)
+        self.reset_belief_request = ResetBeliefRequest()
+        
 
         #init pfield nodes with 
         r = rospy.Rate(100)
@@ -224,7 +231,10 @@ class Simulator(object):
         self.start = False
 
         self.p_g_given_phm = (1.0/self.env_params['num_goals']) * np.ones(self.env_params['num_goals']) 
-
+        self.disamb_activate_ctr = 0
+        self.DISAMB_ACTIVATE_THRESHOLD = 150
+        self.is_disamb_on = False
+        
         while not rospy.is_shutdown():
             if not self.start:
                 self.start = self.env.start_countdown()
@@ -257,53 +267,92 @@ class Simulator(object):
                 #get current robot_pose
                 
                 #get current belief. and entropy of belief. compute argmax g
-                inferred_goal_id_str, inferred_goal_prob = self._get_most_confident_goal()
-                human_vel = self.env.get_mode_conditioned_velocity(self.input_action['human'].interface_signal) #robot_dim
-                if inferred_goal_id_str is not None and inferred_goal_prob is not None:
-                    #get pfield vel for argmax g and current robot pose
+                if not self.is_disamb_on:
+                    inferred_goal_id_str, inferred_goal_prob = self._get_most_confident_goal()
+                    #get human control action in full robot control space
+                    human_vel = self.env.get_mode_conditioned_velocity(self.input_action['human'].interface_signal) #robot_dim
+                    if inferred_goal_id_str is not None and inferred_goal_prob is not None:
+                        #get pfield vel for argmax g and current robot pose
+                        robot_continuous_position = self.env.get_robot_position()
+                        self.compute_velocity_request.current_pos  = robot_continuous_position
+                        self.compute_velocity_request.pfield_id = inferred_goal_id_str #get pfeild vel corresponding to inferred goal 
+                        vel_response = self.compute_velocity_srv(self.compute_velocity_request)
+                        autonomy_vel = list(vel_response.velocity_final)
+                        self.alpha = self._compute_alpha(inferred_goal_prob)
+                    else:
+                        # no inferred goal, hence autonomy vel is zeor
+                        autonomy_vel = list([0.0] * np.array(human_vel).shape[0]) #0.0 autonomy vel
+                        self.alpha = 0.0 #no autonomy, purely human vel
+                
+                    # print('ALPHA and GOAL ', self.alpha, inferred_goal_id_str)
+                    # print('HUMAN and AUTONOMY MAG ', np.linalg.norm(np.array(human_vel)), np.linalg.norm(np.array(autonomy_vel)))
+                    #blend velocity by combining it with user vel.
+                    # apply blend velocity to robot. 
+                    blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
+                    self.input_action['full_control_signal'] = blend_vel
+                    if  np.linalg.norm(np.array(human_vel)) < 1e-5 and not self.is_disamb_on:
+                        self.disamb_activate_ctr += 1
+                    else:
+                        self.disamb_activate_ctr = 0
+                    if self.restart:
+                        pass
+
+                    (
+                        robot_continuous_position,
+                        robot_continuous_orientation,
+                        robot_discrete_state, 
+                        is_done,
+                    ) = self.env.step(self.input_action)
+
+                    if self.terminate:
+                        self.shutdown_hook("Session terminated")
+                        break
+
+                    self.env.render()
+
+                    if self.disamb_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD:
+                        print('ACTIVATING DISAMB')
+                        robot_discrete_state = self.env.get_robot_current_discrete_state() #tuple (x,y,t,m)
+                        belief_at_disamb_time = self.p_g_given_phm
+                        max_disamb_state = self.disamb_algo.get_local_disamb_state(self.p_g_given_phm, robot_discrete_state)
+                        print('MAX DISAMB STATE', max_disamb_state)
+                        #convert discrete disamb state to continous
+                        max_disamb_continuous_position, _,_ = self._convert_discrete_state_to_continuous_pose(max_disamb_state, mdp_env_params["cell_size"], world_bounds)
+                        #update disamb pfield attractor
+                        self.update_attractor_ds_request.pfield_id = 'disamb'
+                        self.update_attractor_ds_request.attractor_position = list(max_disamb_continuous_position) #dummy attractor pos. Will be update after disamb computation
+                        self.update_attractor_ds_srv(self.update_attractor_ds_request)
+                        self.is_disamb_on = True
+
+                else:
+                    # print('IN DISAMB BLOCK')
                     robot_continuous_position = self.env.get_robot_position()
                     self.compute_velocity_request.current_pos  = robot_continuous_position
-                    self.compute_velocity_request.pfield_id = inferred_goal_id_str #get pfeild vel corresponding to inferred goal 
+                    self.compute_velocity_request.pfield_id = 'disamb' #get disamb pofield vel
                     vel_response = self.compute_velocity_srv(self.compute_velocity_request)
                     autonomy_vel = list(vel_response.velocity_final)
-                    self.alpha = self._compute_alpha(inferred_goal_prob)
-                else:
-                    # no inferred goal
-                    autonomy_vel = list([0.0] * np.array(human_vel).shape[0]) #0.0 autonomy vel
-                    self.alpha = 0.0 #no autonomy, purely human vel
-                
-                print('ALPHA and GOAL ', self.alpha, inferred_goal_id_str)
-                print('HUMAN and AUTONOMY MAG ', np.linalg.norm(np.array(human_vel)), np.linalg.norm(np.array(autonomy_vel)))
-                
-                #blend velocity by combining it with user vel.
-                # apply blend velocity to robot. 
-                blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
-                # print('human_vel', human_vel)
-                # print('autonomy_velocity', autonomy_vel)
-                # print('blend_vel', blend_vel)
-                # print('         ')
-                self.input_action['full_control_signal'] = blend_vel
-                
-                
-                # if uservel is Null for 2 seconds, activate disamb mode. 
-                # # get disamb discrete state with self.disamb_algo.get_local_disamb_state(belief, current_state)
-                # # convert to continuous disamb state (centre of disamb discrete state)
-                # # change goal for disamb pfield
-                # # get disamb pfield vel. Continue in disamb mode, until current robot_pose is eps within contonuious disamb state
-                if self.restart:
-                    pass
+                    print(np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)))
+                    # print(np.linalg.norm(autonomy_vel))
+                    if np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)) < 0.1:
+                        print('DONE WITH DISAMB PHASE')
+                        print('RESET BELIEF')
+                        self.reset_belief_request.num_goals = self.env_params["num_goals"]
+                        self.reset_belief_request.p_g_given_phm = list(belief_at_disamb_time)
+                        self.is_disamb_on = False
+                        self.disamb_activate_ctr = 0
+                    else:
+                        self.input_action['full_control_signal'] = np.array(autonomy_vel)
+                        (
+                            robot_continuous_position,
+                            robot_continuous_orientation,
+                            robot_discrete_state, 
+                            is_done,
+                        ) = self.env.step(self.input_action)
 
-                (
-                    robot_continuous_position,
-                    robot_continuous_orientation,
-                    is_done,
-                ) = self.env.step(self.input_action)
-
-                if self.terminate:
-                    self.shutdown_hook("Session terminated")
-                    break
-
-                self.env.render()
+                        self.env.render()
+                    
+                    # print(autonomy_vel)
+                # print('DISAMB CTR ', self.disamb_activate_ctr)
             
             r.sleep()
     
@@ -375,6 +424,7 @@ class Simulator(object):
         num_patches = 2 #two patches of obstacles. 
         if OCCUPANCY_LEVEL == 0.0:
             mdp_env_params["original_mdp_obstacles"] = []
+            dynamics_obs_specs = []
         else:
             mdp_env_params["original_mdp_obstacles"], dynamics_obs_specs = self._create_rectangular_gw_obstacles(
                 width=mdp_env_params["grid_width"],
@@ -409,6 +459,7 @@ class Simulator(object):
         mdp_env_params['dynamic_obs_specs'] = dynamics_obs_specs
 
         return mdp_env_params
+
     def _blend_velocities(self, human_vel, autonomy_vel):
         self.alpha = 0.5
         if np.linalg.norm(human_vel) > 1e-5:
@@ -507,7 +558,6 @@ class Simulator(object):
                 return 0.0
             else:
                 return self.alpha_max
-
 
     def _init_pfield_obs_desc(self, obs_param_dict_list, cell_size, world_bounds):
         cell_size_x = cell_size['x']

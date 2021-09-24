@@ -16,6 +16,7 @@ import sys
 
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
 from simulators.srv import InitBelief, InitBeliefRequest, InitBeliefResponse
+from simulators.srv import ResetBelief, ResetBeliefRequest, ResetBeliefResponse
 from adaptive_assistance_sim_utils import TRUE_ACTION_TO_COMMAND, LOW_LEVEL_COMMANDS
 from adaptive_assistance_sim_utils import (
     AssistanceType,
@@ -35,6 +36,8 @@ class GoalInference(object):
         )
         self.P_G_GIVEN_PHM = collections.OrderedDict()
         rospy.Service("/goal_inference/init_belief", InitBelief, self.init_P_G_GIVEN_PHM)
+        rospy.Service("/goal_inference/reset_belief", ResetBelief, self.reset_P_G_GIVEN_PHM)
+
         rospy.loginfo("Waiting for sim_env node ")
         rospy.wait_for_service("/sim_env/get_prob_a_s_all_g")
         rospy.loginfo("sim_env node found!")
@@ -215,6 +218,29 @@ class GoalInference(object):
             # print("PHM NONE, therefore no belief update", prob_blend_factor)
             self.decay_counter += 1
         # print("Current Belief ", self.P_G_GIVEN_PHM)
+
+    def reset_P_G_GIVEN_PHM(self, req):
+        """
+        Initializes the p(g | phm) dict to uniform dictionary at the beginning of each trial
+        """
+        # service to be called at the beginning of each trial to reinit the distribution.
+        # number of goals could be different for different goals.
+        print("In Reset Belief Service")
+        self.NUM_GOALS = req.num_goals
+        p_g_given_phm = req.p_g_given_phm
+        assert len(p_g_given_phm) == self.NUM_GOALS
+        self.P_G_GIVEN_PHM = collections.OrderedDict()
+        for g in range(self.NUM_GOALS):
+            self.P_G_GIVEN_PHM[g] = p_g_given_phm[g]
+
+        normalization_constant = sum(self.P_G_GIVEN_PHM.values())
+        for g in self.P_G_GIVEN_PHM.keys():  # NORMALIZE POSTERIOR
+            self.P_G_GIVEN_PHM[g] = self.P_G_GIVEN_PHM[g] / normalization_constant
+
+        print("Resetd Belief ", self.P_G_GIVEN_PHM)
+        response = ResetBeliefResponse()
+        response.status = True
+        return response
 
     def init_P_G_GIVEN_PHM(self, req):
         """
