@@ -311,6 +311,7 @@ class Simulator(object):
                         robot_discrete_state, 
                         is_done,
                     ) = self.env.step(self.input_action)
+                    print('CONTINUOUS ORIENTATION ', robot_continuous_orientation)
 
                     if self.terminate:
                         self.shutdown_hook("Session terminated")

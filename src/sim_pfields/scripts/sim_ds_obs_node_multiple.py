@@ -28,6 +28,7 @@ class SimPFieldsMultiple(object):
         self.obs_descs_dict = collections.OrderedDict()
 
         self.initial_ds_system_dict = collections.OrderedDict()
+        self.attractor_orientation_dict = collections.OrderedDict()
         self.vel_scale_factor = 5.0
 
         rospy.Service("/sim_pfields_multiple/init_obstacles", CuboidObsList, self.populate_environment)
@@ -69,6 +70,7 @@ class SimPFieldsMultiple(object):
         attractor_orientation = req.attractor_orientation
         print("ATTRACTOR POSITION for ", attractor_position)
         self.initial_ds_system_dict[pfield_id] = LinearSystem(attractor_position=np.array(attractor_position))
+        self.attractor_orientation_dict[pfield_id] = attractor_orientation
         response = AttractorPosResponse()
         response.success = True
 
@@ -81,6 +83,7 @@ class SimPFieldsMultiple(object):
         dynamical_system = self.initial_ds_system_dict[pfield_id].evaluate
         obs_avoidance_func = obs_avoidance_interpolation_moving
         pos_attractor = self.initial_ds_system_dict[pfield_id].attractor_position
+        attractor_orientation = self.attractor_orientation_dict[pfield_id]
         obs = self.environment_dict[pfield_id]
 
         dim = 2
@@ -128,7 +131,7 @@ class SimPFieldsMultiple(object):
         # print("Modulation calculation total: {} s".format(np.round(end_time - start_time), 4))
 
         response = ComputeVelocityResponse()
-        vel = np.array([float(dx1_noColl), float(dx2_noColl), 0.0])
+        vel = np.array([float(dx1_noColl), float(dx2_noColl), -0.1])
         vel = self.vel_scale_factor * (vel / np.linalg.norm(vel))
         response.velocity_final = vel
 
