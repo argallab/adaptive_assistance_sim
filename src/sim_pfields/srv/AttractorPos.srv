@@ -1,4 +1,5 @@
 float64[] attractor_position
+float64 attractor_orientation
 string pfield_id
 ---
 bool success

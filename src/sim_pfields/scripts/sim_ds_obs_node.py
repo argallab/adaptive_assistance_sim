@@ -63,7 +63,10 @@ class SimPFields(object):
     def update_ds(self, req):
         print("In UPDATE DS service")
         attractor_position = req.attractor_position
+        attractor_orientation = req.attractor_orientation
         print("ATTRACTOR POSITION ", attractor_position)
+
+        # set up the translational dynamical system
         self.initial_ds_system = None
         self.initial_ds_system = LinearSystem(attractor_position=np.array(attractor_position))
         response = AttractorPosResponse()

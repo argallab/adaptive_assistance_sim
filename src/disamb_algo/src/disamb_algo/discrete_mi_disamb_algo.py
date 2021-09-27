@@ -96,8 +96,8 @@ class DiscreteMIDisambAlgo(object):
     def get_local_disamb_state(self, prior, current_state):
         # compute window around current_state
         states_in_local_spatial_window = self._compute_spatial_window_around_current_state(current_state)
-        print(states_in_local_spatial_window)
-        print(len(states_in_local_spatial_window))
+        # print(states_in_local_spatial_window)
+        # print(len(states_in_local_spatial_window))
         # # perform mi computation for all states in spatial window
         self._compute_mi(prior, states_in_local_spatial_window)
         # # pick argmax among this list
@@ -198,7 +198,12 @@ class DiscreteMIDisambAlgo(object):
         for wc in window_coordinates:
             vs = current_grid_loc + np.array(wc)  # 2d grid loc
             for mode in range(self.num_modes):  #
-                vs_mode = (vs[0], vs[1], current_orientation, mode + 1)
+                vs_mode = (
+                    vs[0],
+                    vs[1],
+                    current_orientation,
+                    mode + 1,
+                )  # same orientation as the current state for all states under consideration
                 if vs_mode in all_state_coords:
                     states_in_local_spatial_window.append(vs_mode)
 

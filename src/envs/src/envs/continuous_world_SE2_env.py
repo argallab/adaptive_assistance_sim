@@ -394,6 +394,10 @@ class ContinuousWorldSE2Env(object):
             rospy.Service("/sim_env/switch_mode_in_robot", SwitchModeSrv, self.switch_mode_in_robot)
             self.service_initialized = True
 
+    def set_mode_in_robot(self, mode_index):
+        print("UPDATE MODE DIRECTLY")
+        self.robot.set_current_mode(mode_index)
+
     def switch_mode_in_robot(self, req):
         mode_switch_action = req.mode_switch_action
         response = SwitchModeSrvResponse()

@@ -398,6 +398,10 @@ class RobotSE2(object):
     def set_robot_color(self, robot_color):
         self.robot_color = robot_color
 
+    def set_current_mode(self, mode_index):
+        self.current_mode = mode_index
+        # TODO assert to mode_index type and range check
+
     def update_current_mode(self, mode_switch_action):
         # directly initiated from the teleop via service in env which contains this robot
         if self.mode_transition_type == ModeTransitionType.Forward_Backward:

@@ -62,7 +62,7 @@ class GoalInference(object):
         self.OPTIMAL_ACTION_FOR_S_G = []
         self.decay_counter = 0
         self.decay_counter_max_value = 1000
-        self.decay_scale_factor = 0.01  # lower this value to slow down the decay
+        self.decay_scale_factor = 0.005  # lower this value to slow down the decay
 
         if self.ASSISTANCE_TYPE == 0:
             self.ASSISTANCE_TYPE = AssistanceType.Filter
@@ -237,7 +237,7 @@ class GoalInference(object):
         for g in self.P_G_GIVEN_PHM.keys():  # NORMALIZE POSTERIOR
             self.P_G_GIVEN_PHM[g] = self.P_G_GIVEN_PHM[g] / normalization_constant
 
-        print("Resetd Belief ", self.P_G_GIVEN_PHM)
+        print("Reset Belief ", self.P_G_GIVEN_PHM)
         response = ResetBeliefResponse()
         response.status = True
         return response

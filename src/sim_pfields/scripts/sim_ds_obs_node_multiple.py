@@ -66,6 +66,7 @@ class SimPFieldsMultiple(object):
         print("In UPDATE DS service")
         pfield_id = req.pfield_id
         attractor_position = req.attractor_position
+        attractor_orientation = req.attractor_orientation
         print("ATTRACTOR POSITION for ", attractor_position)
         self.initial_ds_system_dict[pfield_id] = LinearSystem(attractor_position=np.array(attractor_position))
         response = AttractorPosResponse()
@@ -101,9 +102,6 @@ class SimPFieldsMultiple(object):
 
         xd_init = np.zeros((2, N_x, N_y))
         xd_mod = np.zeros((2, N_x, N_y))
-        t_start = time.time()
-
-        t_start = time.time()
 
         for ix in range(N_x):
             for iy in range(N_y):
@@ -113,7 +111,7 @@ class SimPFieldsMultiple(object):
                 xd_init[:, ix, iy] = dynamical_system(pos)  # initial DS
                 xd_mod[:, ix, iy] = obs_avoidance_func(pos, xd_init[:, ix, iy], obs)
                 # xd_mod[:, ix, iy] = xd_init[:, ix, iy]  # DEBUGGING only!!
-        t_end = time.time()
+
         n_collfree = np.sum(indOfNoCollision)
 
         if not n_collfree:  # zero points
