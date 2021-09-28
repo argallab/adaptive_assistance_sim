@@ -175,14 +175,6 @@ class DiscreteMIDisambAlgo(object):
 
             self.avg_mi_for_valid_states[vs] = np.mean(kl_list)  # averaged over goals.
             self.avg_total_reward_for_valid_states[vs] = self.kl_coeff * (self.avg_mi_for_valid_states[vs])
-            # normalized to grid dimensions
-            # avg_dist_of_vs_from_goals = np.mean(
-            #     np.linalg.norm(
-            #         (np.array(self.mdp_env_params["all_goals"]) - np.array(vs[:2]))
-            #         / np.array([GRID_WIDTH, GRID_HEIGHT], dtype=np.float32),
-            #         axis=1,
-            #     )
-            # )
 
     def _compute_spatial_window_around_current_state(self, current_state):
         current_grid_loc = np.array(current_state[0:2])  # (x,y)
@@ -207,6 +199,7 @@ class DiscreteMIDisambAlgo(object):
                 if vs_mode in all_state_coords:
                     states_in_local_spatial_window.append(vs_mode)
 
+        assert len(states_in_local_spatial_window) > 0
         return states_in_local_spatial_window
 
     def sample_phi_given_a(self, a):  # sample from p(phii|a)

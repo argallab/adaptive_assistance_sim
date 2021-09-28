@@ -128,7 +128,6 @@ class Simulator(object):
                 mdp_env_params['cell_size']['x'] = (world_bounds["xrange"]["ub"] - world_bounds["xrange"]["lb"]) / mdp_env_params['grid_width']
                 mdp_env_params['cell_size']['y'] = (world_bounds["yrange"]["ub"] - world_bounds["yrange"]["lb"]) / mdp_env_params['grid_height']
                 
-
                 # self._init_pfield_obs_desc(mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
 
                 self.env_params = dict()
@@ -201,6 +200,7 @@ class Simulator(object):
         self.env.initialize_viewer()
         self.env.reset()
         self.env.viewer.window.on_key_press = self.key_press
+        
 
         self.disamb_algo = DiscreteMIDisambAlgo(self.env_params, subject_id)
 
@@ -236,12 +236,15 @@ class Simulator(object):
         self.is_disamb_on = False
         self.has_human_initiated = False
         
+        self.env.set_information_text("Waiting....")
+        
         while not rospy.is_shutdown():
             if not self.start:
                 self.start = self.env.start_countdown()
             else:
                 if first_trial:
                     time.sleep(2)
+                    
                     self.trial_marker_pub.publish("start")
                     # self.trial_index_pub.publish(trial_info_filename_index)
                     self.env.reset()
@@ -293,7 +296,7 @@ class Simulator(object):
                     # apply blend velocity to robot. 
                     blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
                     self.input_action['full_control_signal'] = blend_vel
-                    print('APPLIED SIGNAL ', self.input_action['full_control_signal'])
+                    # print('APPLIED SIGNAL ', self.input_action['full_control_signal'])
                     if np.linalg.norm(np.array(human_vel)) < 1e-5:
                         if self.has_human_initiated:
                             #zero human vel and human has already issued some non-zero velocities during their turn,
@@ -302,6 +305,7 @@ class Simulator(object):
                     else: #if non-zero human velocity
                         if not self.has_human_initiated:
                             print('HUMAN INITIATED DURING THEIR TURN')
+                            self.env.set_information_text("Blending Mode")
                             self.has_human_initiated = True
                         self.disamb_activate_ctr = 0
 
@@ -324,7 +328,9 @@ class Simulator(object):
 
                     if self.disamb_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD and normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD: #maybe add other conditions such as high entropy for belief as a way to trigger
                         print('ACTIVATING DISAMB')
+                        self.env.set_information_text("Disamb")
                         robot_discrete_state = self.env.get_robot_current_discrete_state() #tuple (x,y,t,m)
+                        current_mode = robot_discrete_state[-1]
                         belief_at_disamb_time = self.p_g_given_phm
                         max_disamb_state = self.disamb_algo.get_local_disamb_state(self.p_g_given_phm, robot_discrete_state)
                         print('MAX DISAMB STATE', max_disamb_state)
@@ -338,8 +344,10 @@ class Simulator(object):
                         # activate disamb flag so that autonomy can drive the robot to the disamb location
                         self.is_disamb_on = True
 
-                        #switch current mode to disamb mode.
+                        #switch current mode to disamb mode. #if disamb mdoe different from current update the message
                         disamb_state_mode_index = max_disamb_state[-1]
+                        if disamb_state_mode_index != current_mode:
+                            self.env.set_information_text("Disamb - MODE SWITCHED")
                         self.env.set_mode_in_robot(disamb_state_mode_index)
                         
 
@@ -365,6 +373,7 @@ class Simulator(object):
                         self.is_disamb_on = False
                         # reset human initiator flag for next turn. 
                         self.has_human_initiated = False
+                        self.env.set_information_text("Waiting...")
                         self.disamb_activate_ctr = 0
                     else:
                         # use only autonomy vel to move towards the local disamb state. 

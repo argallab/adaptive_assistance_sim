@@ -10,6 +10,8 @@ import rospkg
 import os
 import sys
 
+sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
+
 
 from ds_obs_avoidance.ds_containers.gradient_container import GradientContainer
 from ds_obs_avoidance.ds_obstacles.polygon import Cuboid
@@ -24,8 +26,6 @@ from sim_pfields.srv import AttractorPos, AttractorPosRequest, AttractorPosRespo
 from sim_pfields.srv import ComputeVelocity, ComputeVelocityRequest, ComputeVelocityResponse
 
 
-sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
-
 from adaptive_assistance_sim_utils import *
 
 
@@ -38,7 +38,7 @@ class SimPFieldsMultiple(object):
 
         self.initial_ds_system_dict = collections.OrderedDict()
         self.attractor_orientation_dict = collections.OrderedDict()
-        self.vel_scale_factor = 5.0
+        self.vel_scale_factor = 3.0
         self.ROT_VEL_MAGNITUDE = 1.5
 
         rospy.Service("/sim_pfields_multiple/init_obstacles", CuboidObsList, self.populate_environment)
@@ -93,8 +93,7 @@ class SimPFieldsMultiple(object):
         current_orientation = req.current_orientation
         pfield_id = req.pfield_id
         dynamical_system = self.initial_ds_system_dict[pfield_id].evaluate
-        obs_avoidance_func = obs_avoidance_interpolation_moving
-        pos_attractor = self.initial_ds_system_dict[pfield_id].attractor_position
+        obs_avoidance_func = obs_avoidance_interpolation_moving  # the obs function to be used
         attractor_orientation = self.attractor_orientation_dict[pfield_id]
         obs = self.environment_dict[pfield_id]
 

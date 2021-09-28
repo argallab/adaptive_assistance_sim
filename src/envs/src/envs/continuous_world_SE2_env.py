@@ -192,9 +192,49 @@ class ContinuousWorldSE2Env(object):
             else:
                 self.viewer.draw_circle(MODE_DISPLAY_RADIUS / SCALE, 30, True, color=NONACTIVE_MODE_COLOR).add_attr(t)
 
+    def _render_mode_display_text(self):
+        """
+        Note that the coordinates of the text should in real pixels. Which is why here there is a multiplicative factor of SCALE.
+        """
+        self.viewer.draw_text(
+            "Horizontal",
+            x=MODE_DISPLAY_TEXT_START_POSITION[0],
+            y=MODE_DISPLAY_TEXT_START_POSITION[1],
+            font_size=MODE_DISPLAY_TEXT_FONTSIZE,
+            color=MODE_DISPLAY_TEXT_COLOR,
+            anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
+        )
+        self.viewer.draw_text(
+            "Vertical",
+            x=MODE_DISPLAY_TEXT_START_POSITION[0] + MODE_DISPLAY_TEXT_X_OFFSET,
+            y=MODE_DISPLAY_TEXT_START_POSITION[1],
+            font_size=MODE_DISPLAY_TEXT_FONTSIZE,
+            color=MODE_DISPLAY_TEXT_COLOR,
+            anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
+        )
+        self.viewer.draw_text(
+            "Rotation",
+            x=MODE_DISPLAY_TEXT_START_POSITION[0] + 2 * MODE_DISPLAY_TEXT_X_OFFSET,
+            y=MODE_DISPLAY_TEXT_START_POSITION[1],
+            font_size=MODE_DISPLAY_TEXT_FONTSIZE,
+            color=MODE_DISPLAY_TEXT_COLOR,
+            anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
+        )
+
     def _render_robot_direction_indicators(self):
         ep_markers = self.robot.get_direction_marker_end_points()
         self.viewer.draw_line(ep_markers[0], ep_markers[1], linewidth=3.0)
+
+    def _render_information_text(self):
+        self.viewer.draw_text(
+            self.information_text,
+            x=MODE_DISPLAY_TEXT_START_POSITION[0] + MODE_DISPLAY_TEXT_X_OFFSET,
+            y=VIEWPORT_H / 2,
+            font_size=TIMER_DISPLAY_FONTSIZE / 2,
+            color=TIMER_COLOR_NEUTRAL,
+            anchor_y=TIMER_DISPLAY_TEXT_Y_ANCHOR,
+            bold=True,
+        )
 
     def _render_timer_text(self):
         if self.current_time < TIMER_WARNING_THRESHOLD:
@@ -253,6 +293,8 @@ class ContinuousWorldSE2Env(object):
         self._render_goals()
         self._render_robot()
         self._render_mode_switch_display()
+        self._render_mode_display_text()
+        self._render_information_text()
         # draw robot direction indicator after the robot has been drawn.
         self._render_robot_direction_indicators()
 
@@ -295,6 +337,7 @@ class ContinuousWorldSE2Env(object):
         self.world_bounds = None
         self.DIMENSIONS = []
         self.DIMENSION_INDICES = []
+        self.information_text = ""
 
     def initialize(self):
         self.start_session = self.env_params["start"]
@@ -393,6 +436,9 @@ class ContinuousWorldSE2Env(object):
             rospy.Service("/sim_env/get_prob_a_s_all_g", PASAllG, self.get_prob_a_s_all_g)
             rospy.Service("/sim_env/switch_mode_in_robot", SwitchModeSrv, self.switch_mode_in_robot)
             self.service_initialized = True
+
+    def set_information_text(self, information_text):
+        self.information_text = information_text
 
     def set_mode_in_robot(self, mode_index):
         print("UPDATE MODE DIRECTLY")
