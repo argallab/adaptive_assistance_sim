@@ -186,7 +186,7 @@ class Simulator(object):
         #alpha from confidence function parameters
         self.confidence_threshold = 0.4
         self.confidence_max = 0.8
-        self.alpha_max = 0.8
+        self.alpha_max = 0.9
         if self.confidence_max != self.confidence_threshold:
             self.confidence_slope = float(self.alpha_max)/(self.confidence_max - self.confidence_threshold)
         else:
@@ -311,7 +311,7 @@ class Simulator(object):
                         robot_discrete_state, 
                         is_done,
                     ) = self.env.step(self.input_action)
-                    print('CONTINUOUS ORIENTATION ', robot_continuous_orientation)
+                
 
                     if self.terminate:
                         self.shutdown_hook("Session terminated")
@@ -326,11 +326,11 @@ class Simulator(object):
                         max_disamb_state = self.disamb_algo.get_local_disamb_state(self.p_g_given_phm, robot_discrete_state)
                         print('MAX DISAMB STATE', max_disamb_state)
                         # convert discrete disamb state to continous attractor position for disamb pfield
-                        max_disamb_continuous_position, _,_ = self._convert_discrete_state_to_continuous_pose(max_disamb_state, mdp_env_params["cell_size"], world_bounds)
+                        max_disamb_continuous_position, max_disamb_continuous_orientation,_ = self._convert_discrete_state_to_continuous_pose(max_disamb_state, mdp_env_params["cell_size"], world_bounds)
                         # update disamb pfield attractor
                         self.update_attractor_ds_request.pfield_id = 'disamb'
                         self.update_attractor_ds_request.attractor_position = list(max_disamb_continuous_position) #dummy attractor pos. Will be update after disamb computation
-                        self.update_attractor_ds_request.attractor_orientation = 0.0
+                        self.update_attractor_ds_request.attractor_orientation = float(max_disamb_continuous_orientation)
                         self.update_attractor_ds_srv(self.update_attractor_ds_request)
                         # activate disamb flag so that autonomy can drive the robot to the disamb location
                         self.is_disamb_on = True
@@ -552,9 +552,7 @@ class Simulator(object):
             self.update_attractor_ds_request.attractor_orientation = goal_pose[-1] #goal orientation
             self.update_attractor_ds_srv(self.update_attractor_ds_request)
 
-    # def _init_goal_attractor_pose(self, continuous_goal_pose):
-    #     self.update_attractor_ds_request.attractor_position = continuous_goal_pose[:-1]
-    #     self.update_attractor_ds_srv(self.update_attractor_ds_request)
+    
     def _get_most_confident_goal(self):
         p_g_given_phm_vector = self.p_g_given_phm + np.finfo(self.p_g_given_phm.dtype).tiny
         uniform_distribution = np.array([1.0 / p_g_given_phm_vector.size] * p_g_given_phm_vector.size)

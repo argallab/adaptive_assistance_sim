@@ -356,7 +356,12 @@ class RobotSE2(object):
         return [self.robot.position[0], self.robot.position[1]]
 
     def get_angle(self):
-        return self.robot.angle
+        wrapped_angle = self.robot.angle
+        while wrapped_angle >= 2 * PI:
+            wrapped_angle -= 2 * PI
+        while wrapped_angle <= 0.0:
+            wrapped_angle += 2 * PI
+        return wrapped_angle % (2 * PI)
 
     def get_linear_velocity(self):
         return [self.robot.linearVelocity[0], self.robot.linearVelocity[1]]

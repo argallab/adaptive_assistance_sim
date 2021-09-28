@@ -10,7 +10,7 @@ import numpy as np
 
 
 def angle_is_between(angle_test, angle_low, angle_high):
-    """ Verify if angle_test is in between angle_low & angle_high """
+    """Verify if angle_test is in between angle_low & angle_high"""
     delta_low = angle_difference_directional(angle_test, angle_low)
     delta_high = angle_difference_directional(angle_high, angle_test)
 
@@ -18,9 +18,9 @@ def angle_is_between(angle_test, angle_low, angle_high):
 
 
 def angle_is_in_between(angle_test, angle_low, angle_high, margin=1e-9):
-    """ Verify if angle_test is in between angle_low & angle_high
-    Values are between [0, 2pi]. 
-    Margin to account for numerical errors. """
+    """Verify if angle_test is in between angle_low & angle_high
+    Values are between [0, 2pi].
+    Margin to account for numerical errors."""
     delta_low = angle_difference_directional_2pi(angle_test, angle_low)
     delta_high = angle_difference_directional_2pi(angle_high, angle_test)
 
@@ -30,7 +30,7 @@ def angle_is_in_between(angle_test, angle_low, angle_high, margin=1e-9):
 
 
 def angle_modulo(angle):
-    """ Get angle in [-pi, pi[  """
+    """Get angle in [-pi, pi["""
     return ((angle + pi) % (2 * pi)) - pi
 
 
@@ -72,7 +72,7 @@ def angle_difference_abs(angle1, angle2):
 
 
 def transform_polar2cartesian(magnitude, angle, center_position=None):
-    """ Transform 2d from polar- to cartesian coordinates."""
+    """Transform 2d from polar- to cartesian coordinates."""
     """
     center_position is the origin for the coordinate system in which (r, theta) is defined
 

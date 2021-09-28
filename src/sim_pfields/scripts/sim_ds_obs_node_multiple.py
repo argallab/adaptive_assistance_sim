@@ -68,7 +68,8 @@ class SimPFieldsMultiple(object):
         pfield_id = req.pfield_id
         attractor_position = req.attractor_position
         attractor_orientation = req.attractor_orientation
-        print("ATTRACTOR POSITION for ", attractor_position)
+        print("ATTRACTOR POSITION for ", pfield_id, attractor_position)
+        print("ATTRACTOR ORIENTATION for ", pfield_id, attractor_orientation)
         self.initial_ds_system_dict[pfield_id] = LinearSystem(attractor_position=np.array(attractor_position))
         self.attractor_orientation_dict[pfield_id] = attractor_orientation
         response = AttractorPosResponse()
@@ -131,7 +132,7 @@ class SimPFieldsMultiple(object):
         # print("Modulation calculation total: {} s".format(np.round(end_time - start_time), 4))
 
         response = ComputeVelocityResponse()
-        vel = np.array([float(dx1_noColl), float(dx2_noColl), -0.1])
+        vel = np.array([float(dx1_noColl), float(dx2_noColl), -1.0])
         vel = self.vel_scale_factor * (vel / np.linalg.norm(vel))
         response.velocity_final = vel
 
