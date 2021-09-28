@@ -6,6 +6,10 @@ import collections
 import numpy as np
 import time
 import warnings
+import rospkg
+import os
+import sys
+
 
 from ds_obs_avoidance.ds_containers.gradient_container import GradientContainer
 from ds_obs_avoidance.ds_obstacles.polygon import Cuboid
@@ -20,6 +24,11 @@ from sim_pfields.srv import AttractorPos, AttractorPosRequest, AttractorPosRespo
 from sim_pfields.srv import ComputeVelocity, ComputeVelocityRequest, ComputeVelocityResponse
 
 
+sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
+
+from adaptive_assistance_sim_utils import *
+
+
 class SimPFieldsMultiple(object):
     def __init__(self):
         rospy.init_node("sim_pfields_multiple")
@@ -30,6 +39,7 @@ class SimPFieldsMultiple(object):
         self.initial_ds_system_dict = collections.OrderedDict()
         self.attractor_orientation_dict = collections.OrderedDict()
         self.vel_scale_factor = 5.0
+        self.ROT_VEL_MAGNITUDE = 1.5
 
         rospy.Service("/sim_pfields_multiple/init_obstacles", CuboidObsList, self.populate_environment)
         rospy.Service("/sim_pfields_multiple/update_ds", AttractorPos, self.update_ds)
@@ -80,6 +90,7 @@ class SimPFieldsMultiple(object):
     def compute_velocity(self, req):
 
         current_pos = req.current_pos
+        current_orientation = req.current_orientation
         pfield_id = req.pfield_id
         dynamical_system = self.initial_ds_system_dict[pfield_id].evaluate
         obs_avoidance_func = obs_avoidance_interpolation_moving
@@ -132,11 +143,33 @@ class SimPFieldsMultiple(object):
         # print("Modulation calculation total: {} s".format(np.round(end_time - start_time), 4))
 
         response = ComputeVelocityResponse()
-        vel = np.array([float(dx1_noColl), float(dx2_noColl), -1.0])
+        vel = np.array([float(dx1_noColl), float(dx2_noColl), 0.0])
         vel = self.vel_scale_factor * (vel / np.linalg.norm(vel))
+
+        # compute rotational velocity
+        # both angles in [0, 2pi]
+        vel[-1] = self._get_shortest_angle_direction(current_orientation, attractor_orientation)
         response.velocity_final = vel
 
         return response
+
+    def _get_shortest_angle_direction(self, current_angle, target_angle):
+        # ASSUMPTION: both current_angle and target_angle are in [0, 2pi]
+
+        if abs(target_angle - current_angle) >= PI:
+            if target_angle > current_angle:
+                rotational_velocity = -self.ROT_VEL_MAGNITUDE
+            elif current_angle > target_angle:
+                rotational_velocity = self.ROT_VEL_MAGNITUDE
+        elif abs(target_angle - current_angle) < PI:
+            if target_angle > current_angle:
+                rotational_velocity = self.ROT_VEL_MAGNITUDE
+            elif current_angle > target_angle:
+                rotational_velocity = -self.ROT_VEL_MAGNITUDE
+            elif current_angle - target_angle < 0.01:
+                rotational_velocity = 0.0
+
+        return rotational_velocity
 
 
 if __name__ == "__main__":

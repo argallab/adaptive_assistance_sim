@@ -456,6 +456,9 @@ class ContinuousWorldSE2Env(object):
     def get_robot_position(self):
         return self.robot.get_position()
 
+    def get_robot_orientation(self):
+        return self.robot.get_angle()  # [0, 2pi]
+
     def get_mode_conditioned_velocity(self, interface_signal):
         return self.robot.mode_conditioned_velocity(interface_signal)
 

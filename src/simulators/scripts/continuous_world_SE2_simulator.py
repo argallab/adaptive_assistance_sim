@@ -275,7 +275,9 @@ class Simulator(object):
                     if inferred_goal_id_str is not None and inferred_goal_prob is not None:
                         #get pfield vel for argmax g and current robot pose
                         robot_continuous_position = self.env.get_robot_position()
+                        robot_continuous_orientation = self.env.get_robot_orientation()
                         self.compute_velocity_request.current_pos  = robot_continuous_position
+                        self.compute_velocity_request.current_orientation = robot_continuous_orientation
                         self.compute_velocity_request.pfield_id = inferred_goal_id_str #get pfeild vel corresponding to inferred goal 
                         vel_response = self.compute_velocity_srv(self.compute_velocity_request)
                         autonomy_vel = list(vel_response.velocity_final)
@@ -291,6 +293,7 @@ class Simulator(object):
                     # apply blend velocity to robot. 
                     blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
                     self.input_action['full_control_signal'] = blend_vel
+                    print('APPLIED SIGNAL ', self.input_action['full_control_signal'])
                     if np.linalg.norm(np.array(human_vel)) < 1e-5:
                         if self.has_human_initiated:
                             #zero human vel and human has already issued some non-zero velocities during their turn,
@@ -343,7 +346,9 @@ class Simulator(object):
                 else:
                     # print('IN DISAMB BLOCK')
                     robot_continuous_position = self.env.get_robot_position()
+                    robot_continuous_orientation = self.env.get_robot_orientation()
                     self.compute_velocity_request.current_pos  = robot_continuous_position
+                    self.compute_velocity_request.current_orientation = robot_continuous_orientation
                     self.compute_velocity_request.pfield_id = 'disamb' #get disamb pfield vel
                     vel_response = self.compute_velocity_srv(self.compute_velocity_request)
                     autonomy_vel = list(vel_response.velocity_final)
@@ -364,6 +369,7 @@ class Simulator(object):
                     else:
                         # use only autonomy vel to move towards the local disamb state. 
                         self.input_action['full_control_signal'] = np.array(autonomy_vel)
+                        
                         (
                             robot_continuous_position,
                             robot_continuous_orientation,
@@ -483,7 +489,6 @@ class Simulator(object):
         return mdp_env_params
 
     def _blend_velocities(self, human_vel, autonomy_vel):
-        self.alpha = 0.5
         if np.linalg.norm(human_vel) > 1e-5:
             blend_vel = self.alpha * autonomy_vel + (1.0-self.alpha)*human_vel
         else:
