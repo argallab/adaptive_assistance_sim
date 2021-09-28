@@ -55,11 +55,13 @@ class GoalInference(object):
         self.P_PHM_GIVEN_PHI = None
         self.DEFAULT_PHI_GIVEN_A_NOISE = 0.1
         self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.1
+        self.DELAYED_DECAY_THRESHOLD = 20
 
         self.ASSISTANCE_TYPE = rospy.get_param("assistance_type", 2)
 
         self.P_A_S_ALL_G_DICT = collections.OrderedDict()
         self.OPTIMAL_ACTION_FOR_S_G = []
+        self.delayed_decay_counter = 0
         self.decay_counter = 0
         self.decay_counter_max_value = 1000
         self.decay_scale_factor = 0.005  # lower this value to slow down the decay
@@ -204,19 +206,23 @@ class GoalInference(object):
                 self.P_G_GIVEN_PHM[g] = self.P_G_GIVEN_PHM[g] / normalization_constant
 
             # print("Current Belief ", self.P_G_GIVEN_PHM)
+            self.delayed_decay_counter = 0
 
         else:
-            prob_blend_factor = 1 - np.exp(
-                -self.decay_scale_factor * min(self.decay_counter, self.decay_counter_max_value)
-            )
-            uniform_dist = (1.0 / self.NUM_GOALS) * np.ones(self.NUM_GOALS)
-            blended_dist = (1 - prob_blend_factor) * np.array(
-                list(self.P_G_GIVEN_PHM.values())
-            ) + prob_blend_factor * uniform_dist
-            for idx, g in enumerate(self.P_G_GIVEN_PHM.keys()):
-                self.P_G_GIVEN_PHM[g] = blended_dist[idx]
-            # print("PHM NONE, therefore no belief update", prob_blend_factor)
-            self.decay_counter += 1
+            if self.delayed_decay_counter > self.DELAYED_DECAY_THRESHOLD:
+                prob_blend_factor = 1 - np.exp(
+                    -self.decay_scale_factor * min(self.decay_counter, self.decay_counter_max_value)
+                )
+                uniform_dist = (1.0 / self.NUM_GOALS) * np.ones(self.NUM_GOALS)
+                blended_dist = (1 - prob_blend_factor) * np.array(
+                    list(self.P_G_GIVEN_PHM.values())
+                ) + prob_blend_factor * uniform_dist
+                for idx, g in enumerate(self.P_G_GIVEN_PHM.keys()):
+                    self.P_G_GIVEN_PHM[g] = blended_dist[idx]
+                # print("PHM NONE, therefore no belief update", prob_blend_factor)
+                self.decay_counter += 1
+            else:
+                self.delayed_decay_counter += 1
         # print("Current Belief ", self.P_G_GIVEN_PHM)
 
     def reset_P_G_GIVEN_PHM(self, req):

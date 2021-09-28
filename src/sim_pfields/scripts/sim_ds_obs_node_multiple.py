@@ -38,7 +38,7 @@ class SimPFieldsMultiple(object):
 
         self.initial_ds_system_dict = collections.OrderedDict()
         self.attractor_orientation_dict = collections.OrderedDict()
-        self.vel_scale_factor = 3.0
+        self.vel_scale_factor = 5.0
         self.ROT_VEL_MAGNITUDE = 1.5
 
         rospy.Service("/sim_pfields_multiple/init_obstacles", CuboidObsList, self.populate_environment)

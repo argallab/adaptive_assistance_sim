@@ -236,7 +236,7 @@ class Simulator(object):
         self.is_disamb_on = False
         self.has_human_initiated = False
         
-        self.env.set_information_text("Waiting....")
+        
         
         while not rospy.is_shutdown():
             if not self.start:
@@ -249,6 +249,7 @@ class Simulator(object):
                     # self.trial_index_pub.publish(trial_info_filename_index)
                     self.env.reset()
                     self.env.render()
+                    self.env.set_information_text("Waiting....")
                     self.trial_start_time = time.time()
                     first_trial = False
                 else:

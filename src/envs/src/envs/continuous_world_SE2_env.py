@@ -75,11 +75,11 @@ class ContinuousWorldSE2Env(object):
     def _continuous_orientation_to_discrete_orientation(self):
         cont_orientation = self.robot.get_angle()
         # wrap angle back to  0 to 2PI
-        while not (cont_orientation >= 0.0 and cont_orientation < 2 * PI):
-            if cont_orientation >= 2 * PI:
-                cont_orientation -= 2 * PI
-            if cont_orientation < 0.0:
-                cont_orientation += 2 * PI
+        # while not (cont_orientation >= 0.0 and cont_orientation < 2 * PI):
+        #     if cont_orientation >= 2 * PI:
+        #         cont_orientation -= 2 * PI
+        #     if cont_orientation < 0.0:
+        #         cont_orientation += 2 * PI
 
         # discretize to current discrete MDP orientation
         angle_resolution = (2 * PI) / self.mdp_num_discrete_orientations
