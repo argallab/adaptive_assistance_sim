@@ -447,7 +447,11 @@ def init_P_PHM_GIVEN_PHI():
         for index, j in enumerate(INTERFACE_LEVEL_ACTIONS):
             P_PHM_GIVEN_PHI[i][j] = blended_dist[index]
 
-
+# TODO: "I see the bug. compute_mi() in simulate_human_2d_modes_mdp() is not actually using the states from the local spatial window. The states_for_disamb_computation arg is still None."
+# Essentially: 
+# 1. Pick an arbitrary state in the MDP. 
+# 2. use _compute_spatial_window_around_current_state() to compute neighboring states. 
+# 3. set states_for_disamb_computation arg for compute_mi() to output of step 2.
 def simulate_human_2d_modes_mdp():
     mdp_env_params = create_mdp_env_param_dict()
     mdp_list = create_mdp_list(mdp_env_params)
@@ -600,7 +604,7 @@ if __name__ == "__main__":
     
     min_sp_win_hl = 1
     max_sp_win_hl = 15
-    repeat_num = 10
+    repeat_num = 25
 
     for sp_win_hl_pop_idx in range(min_sp_win_hl, max_sp_win_hl+1):
         timing_dict["sp_win_hl"][sp_win_hl_pop_idx] = {"durations" : [], "ave" : [], "stdev" : []}
