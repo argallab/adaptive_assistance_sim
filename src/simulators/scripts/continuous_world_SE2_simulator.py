@@ -17,6 +17,8 @@ from teleop_nodes.msg import InterfaceSignal
 from simulators.msg import State
 from simulators.srv import InitBelief, InitBeliefRequest, InitBeliefResponse
 from simulators.srv import ResetBelief, ResetBeliefRequest, ResetBeliefResponse
+from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
+
 
 from inference_engine.msg import BeliefInfo
 from teleop_nodes.srv import SetMode, SetModeRequest, SetModeResponse
@@ -141,7 +143,8 @@ class Simulator(object):
                 self.env_params["is_visualize_grid"] = True
 
                 print ("GOALS", mdp_env_params["all_goals"])
-                discrete_robot_state = mdp_list[0].get_random_valid_state()
+                # discrete_robot_state = mdp_list[0].get_random_valid_state()
+                discrete_robot_state = (0 ,0 ,0 ,1)
                 robot_position, robot_orientation, start_mode = self._convert_discrete_state_to_continuous_pose(
                     discrete_robot_state, mdp_env_params["cell_size"], world_bounds
                 )
@@ -176,7 +179,7 @@ class Simulator(object):
                 self.env_params['assistance_type'] = 1
 
                 #disamb algo specific params
-                self.env_params['spatial_window_half_length'] = 3 #number of cells
+                self.env_params['spatial_window_half_length'] = 4 #number of cells
                 # kl_coeff, num_modes,
 
             else:
@@ -208,6 +211,7 @@ class Simulator(object):
         rospy.loginfo("Waiting for goal inference node")
         rospy.wait_for_service("/goal_inference/init_belief")
         rospy.wait_for_service("/goal_inference/reset_belief")
+        rospy.wait_for_service("/goal_inference/freeze_update")
         rospy.loginfo("goal inference node service found! ")
 
         self.init_belief_srv = rospy.ServiceProxy("/goal_inference/init_belief", InitBelief)
@@ -217,6 +221,13 @@ class Simulator(object):
 
         self.reset_belief_srv = rospy.ServiceProxy("/goal_inference/reset_belief", ResetBelief)
         self.reset_belief_request = ResetBeliefRequest()
+
+        self.freeze_update_srv = rospy.ServiceProxy("/goal_inference/freeze_update", SetBool)
+        self.freeze_update_request = SetBoolRequest()
+
+        #unfreeze belief update
+        self.freeze_update_request.data = False
+        self.freeze_update_srv(self.freeze_update_request)
         
 
         #init pfield nodes with 
@@ -232,11 +243,9 @@ class Simulator(object):
 
         self.p_g_given_phm = (1.0/self.env_params['num_goals']) * np.ones(self.env_params['num_goals']) 
         self.disamb_activate_ctr = 0
-        self.DISAMB_ACTIVATE_THRESHOLD = 150
+        self.DISAMB_ACTIVATE_THRESHOLD = 100
         self.is_disamb_on = False
         self.has_human_initiated = False
-        
-        
         
         while not rospy.is_shutdown():
             if not self.start:
@@ -308,6 +317,11 @@ class Simulator(object):
                             print('HUMAN INITIATED DURING THEIR TURN')
                             self.env.set_information_text("Blending Mode")
                             self.has_human_initiated = True
+
+                            #unfreeze belief update
+                            self.freeze_update_request.data = False
+                            self.freeze_update_srv(self.freeze_update_request)
+                            
                         self.disamb_activate_ctr = 0
 
                     if self.restart:
@@ -330,6 +344,12 @@ class Simulator(object):
                     if self.disamb_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD and normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD: #maybe add other conditions such as high entropy for belief as a way to trigger
                         print('ACTIVATING DISAMB')
                         self.env.set_information_text("Disamb")
+
+                        #Freeze belief update during autonomy's turn up until human activates again
+                        self.freeze_update_request.data = True
+                        self.freeze_update_srv(self.freeze_update_request)
+
+                        #get current discrete state
                         robot_discrete_state = self.env.get_robot_current_discrete_state() #tuple (x,y,t,m)
                         current_mode = robot_discrete_state[-1]
                         belief_at_disamb_time = self.p_g_given_phm
@@ -376,6 +396,8 @@ class Simulator(object):
                         self.has_human_initiated = False
                         self.env.set_information_text("Waiting...")
                         self.disamb_activate_ctr = 0
+
+                        
                     else:
                         # use only autonomy vel to move towards the local disamb state. 
                         self.input_action['full_control_signal'] = np.array(autonomy_vel)
@@ -386,8 +408,9 @@ class Simulator(object):
                             robot_discrete_state, 
                             is_done,
                         ) = self.env.step(self.input_action)
+                    
 
-                        self.env.render()
+                    self.env.render()
                     
                     # print(autonomy_vel)
                 # print('DISAMB CTR ', self.disamb_activate_ctr)
@@ -474,17 +497,18 @@ class Simulator(object):
 
 
         print ("OBSTACLES", mdp_env_params["original_mdp_obstacles"])
-        goal_list = create_random_goals(
-            width=mdp_env_params["grid_width"],
-            height=mdp_env_params["grid_height"],
-            num_goals=NUM_GOALS,
-            obstacle_list=mdp_env_params["original_mdp_obstacles"],
-        )  # make the list a tuple
+        # goal_list = create_random_goals(
+        #     width=mdp_env_params["grid_width"],
+        #     height=mdp_env_params["grid_height"],
+        #     num_goals=NUM_GOALS,
+        #     obstacle_list=mdp_env_params["original_mdp_obstacles"],
+        # )  # make the list a tuple
+        goal_list = [(9, 6, 1), (8, 8, 1), (6, 9, 1)]
 
-        for i, g in enumerate(goal_list):
-            g = list(g)
-            g.append(np.random.randint(mdp_env_params["num_discrete_orientations"]))
-            goal_list[i] = tuple(g)
+        # for i, g in enumerate(goal_list):
+        #     g = list(g)
+        #     g.append(np.random.randint(mdp_env_params["num_discrete_orientations"]))
+        #     goal_list[i] = tuple(g)
 
         print (goal_list)
         mdp_env_params["all_goals"] = goal_list

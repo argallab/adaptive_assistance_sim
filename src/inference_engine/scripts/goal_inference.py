@@ -17,6 +17,7 @@ import sys
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
 from simulators.srv import InitBelief, InitBeliefRequest, InitBeliefResponse
 from simulators.srv import ResetBelief, ResetBeliefRequest, ResetBeliefResponse
+from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 from adaptive_assistance_sim_utils import TRUE_ACTION_TO_COMMAND, LOW_LEVEL_COMMANDS
 from adaptive_assistance_sim_utils import (
     AssistanceType,
@@ -37,7 +38,7 @@ class GoalInference(object):
         self.P_G_GIVEN_PHM = collections.OrderedDict()
         rospy.Service("/goal_inference/init_belief", InitBelief, self.init_P_G_GIVEN_PHM)
         rospy.Service("/goal_inference/reset_belief", ResetBelief, self.reset_P_G_GIVEN_PHM)
-
+        rospy.Service("/goal_inference/freeze_update", SetBool, self.freeze_update)
         rospy.loginfo("Waiting for sim_env node ")
         rospy.wait_for_service("/sim_env/get_prob_a_s_all_g")
         rospy.loginfo("sim_env node found!")
@@ -45,6 +46,7 @@ class GoalInference(object):
         # register for service to grab
 
         self.subject_id = subject_id
+        self.is_freeze_update = False
         self.distribution_directory_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "se2_personalized_distributions"
         )
@@ -55,7 +57,7 @@ class GoalInference(object):
         self.P_PHM_GIVEN_PHI = None
         self.DEFAULT_PHI_GIVEN_A_NOISE = 0.1
         self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.1
-        self.DELAYED_DECAY_THRESHOLD = 20
+        self.DELAYED_DECAY_THRESHOLD = 30
 
         self.ASSISTANCE_TYPE = rospy.get_param("assistance_type", 2)
 
@@ -209,21 +211,31 @@ class GoalInference(object):
             self.delayed_decay_counter = 0
 
         else:
-            if self.delayed_decay_counter > self.DELAYED_DECAY_THRESHOLD:
-                prob_blend_factor = 1 - np.exp(
-                    -self.decay_scale_factor * min(self.decay_counter, self.decay_counter_max_value)
-                )
-                uniform_dist = (1.0 / self.NUM_GOALS) * np.ones(self.NUM_GOALS)
-                blended_dist = (1 - prob_blend_factor) * np.array(
-                    list(self.P_G_GIVEN_PHM.values())
-                ) + prob_blend_factor * uniform_dist
-                for idx, g in enumerate(self.P_G_GIVEN_PHM.keys()):
-                    self.P_G_GIVEN_PHM[g] = blended_dist[idx]
-                # print("PHM NONE, therefore no belief update", prob_blend_factor)
-                self.decay_counter += 1
+            if not self.is_freeze_update:
+                if self.delayed_decay_counter > self.DELAYED_DECAY_THRESHOLD:
+                    prob_blend_factor = 1 - np.exp(
+                        -self.decay_scale_factor * min(self.decay_counter, self.decay_counter_max_value)
+                    )
+                    uniform_dist = (1.0 / self.NUM_GOALS) * np.ones(self.NUM_GOALS)
+                    blended_dist = (1 - prob_blend_factor) * np.array(
+                        list(self.P_G_GIVEN_PHM.values())
+                    ) + prob_blend_factor * uniform_dist
+                    for idx, g in enumerate(self.P_G_GIVEN_PHM.keys()):
+                        self.P_G_GIVEN_PHM[g] = blended_dist[idx]
+                    # print("PHM NONE, therefore no belief update", prob_blend_factor)
+                    self.decay_counter += 1
+                else:
+                    self.delayed_decay_counter += 1
             else:
-                self.delayed_decay_counter += 1
+                print("Freeze update")
+                pass
         # print("Current Belief ", self.P_G_GIVEN_PHM)
+
+    def freeze_update(self, req):
+        self.is_freeze_update = req.data
+        response = SetBoolResponse()
+        response.success = True
+        return response
 
     def reset_P_G_GIVEN_PHM(self, req):
         """

@@ -288,7 +288,7 @@ class ContinuousWorldSE2Env(object):
 
     def render(self):
         self._render_bounds()
-        self._render_grid_lines()
+        # self._render_grid_lines()
         self._render_obstacles()
         self._render_goals()
         self._render_robot()
