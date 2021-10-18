@@ -94,8 +94,6 @@ class SNPInput(HybridControlInput):
     def handle_threading(self):
         self.lock.acquire()
         try:
-            if self.send_msg.mode_switch:
-                print("Yes")
             self.data = self.send_msg
         finally:
             self.lock.release()
