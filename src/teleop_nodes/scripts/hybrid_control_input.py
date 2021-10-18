@@ -47,6 +47,7 @@ class HybridControlInput(object):
                 self.filter_list.append(list(self.data.interface_signal[: self.interface_velocity_dim]))
                 data = InterfaceSignal()
                 data.interface_signal[: self.interface_velocity_dim] = list(np.mean(self.filter_list, axis=0))
+                data.mode_switch = self.data.mode_switch
                 data.header = self.data.header
             finally:
                 self.lock.release()

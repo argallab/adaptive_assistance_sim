@@ -72,6 +72,8 @@ class SNPInput(HybridControlInput):
         if switch:
             self._lock_input = True
 
+        return switch
+
     def _handle_velocity_action(self, msg):
         if self.motion_paradigm == 3:  # fixed velocity
             if msg.buttons[1]:  # soft puff
@@ -83,14 +85,17 @@ class SNPInput(HybridControlInput):
                 self.send_msg.interface_signal = [0]
 
     def handle_paradigms(self, msg):
-        self._handle_mode_switch_action(msg)
+        switch = self._handle_mode_switch_action(msg)
         self._handle_velocity_action(msg)
 
         self.send_msg.header.stamp = rospy.Time.now()
+        self.send_msg.mode_switch = switch
 
     def handle_threading(self):
         self.lock.acquire()
         try:
+            if self.send_msg.mode_switch:
+                print("Yes")
             self.data = self.send_msg
         finally:
             self.lock.release()

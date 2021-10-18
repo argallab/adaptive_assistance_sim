@@ -108,6 +108,7 @@ class Simulator(object):
         self.terminate = False
         self.restart = False
         if self.trial_info_dir_path is not None and os.path.exists(self.trial_info_dir_path) and not self.training:
+            #if trials are pregenerated then load from there. 
             pass
         else:
             if not self.training:
@@ -179,10 +180,12 @@ class Simulator(object):
                 self.env_params['assistance_type'] = 1
 
                 #disamb algo specific params
-                self.env_params['spatial_window_half_length'] = 4 #number of cells
+                self.env_params['spatial_window_half_length'] = 3 #number of cells
+                self.condition = 'disamb'
                 # kl_coeff, num_modes,
 
             else:
+                # training trials 
                 pass
         
         #alpha from confidence function parameters
@@ -208,6 +211,7 @@ class Simulator(object):
         self.disamb_algo = DiscreteMIDisambAlgo(self.env_params, subject_id)
 
 
+        #setup all services
         rospy.loginfo("Waiting for goal inference node")
         rospy.wait_for_service("/goal_inference/init_belief")
         rospy.wait_for_service("/goal_inference/reset_belief")
@@ -230,13 +234,14 @@ class Simulator(object):
         self.freeze_update_srv(self.freeze_update_request)
         
 
-        #init pfield nodes with 
+        
         r = rospy.Rate(100)
         self.trial_start_time = time.time()
         if not self.training:
             self.max_time = 1000
         else:
             self.max_time = 1000
+
         is_done = False
         first_trial = True
         self.start = False
@@ -246,6 +251,7 @@ class Simulator(object):
         self.DISAMB_ACTIVATE_THRESHOLD = 100
         self.is_disamb_on = False
         self.has_human_initiated = False
+        self.BLENDING_THRESHOLD = 10
         
         while not rospy.is_shutdown():
             if not self.start:
@@ -276,13 +282,10 @@ class Simulator(object):
                             self.shutdown_hook("Reached end of training")
                             break
                 
-                
-                # print('autonomy vel', vel_response)
-                #get current robot_pose
-                
-                #get current belief. and entropy of belief. compute argmax g
+                # if during human turn
                 if not self.is_disamb_on:
-                    inferred_goal_id_str, inferred_goal_prob, normalized_h_of_p_g_given_phm = self._get_most_confident_goal()
+                    #get current belief. and entropy of belief. compute argmax g
+                    inferred_goal_id_str, inferred_goal_id, inferred_goal_prob, normalized_h_of_p_g_given_phm = self._get_most_confident_goal()
                     #get human control action in full robot control space
                     human_vel = self.env.get_mode_conditioned_velocity(self.input_action['human'].interface_signal) #robot_dim
                     if inferred_goal_id_str is not None and inferred_goal_prob is not None:
@@ -294,7 +297,13 @@ class Simulator(object):
                         self.compute_velocity_request.pfield_id = inferred_goal_id_str #get pfeild vel corresponding to inferred goal 
                         vel_response = self.compute_velocity_srv(self.compute_velocity_request)
                         autonomy_vel = list(vel_response.velocity_final)
-                        self.alpha = self._compute_alpha(inferred_goal_prob)
+                        inferred_goal_pose = self.env_params['goal_poses'][inferred_goal_id]
+                        inferred_goal_position = inferred_goal_pose[:-1]
+                        if np.linalg.norm(np.array(robot_continuous_position) - np.array(inferred_goal_position)) < self.BLENDING_THRESHOLD:
+                            print('close to goal hence blending')
+                            self.alpha = self._compute_alpha(inferred_goal_prob)
+                        else:
+                            self.alpha = 0.0
                     else:
                         # no inferred goal, hence autonomy vel is zeor
                         autonomy_vel = list([0.0] * np.array(human_vel).shape[0]) #0.0 autonomy vel
@@ -306,7 +315,7 @@ class Simulator(object):
                     # apply blend velocity to robot. 
                     blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
                     self.input_action['full_control_signal'] = blend_vel
-                    # print('APPLIED SIGNAL ', self.input_action['full_control_signal'])
+                    
                     if np.linalg.norm(np.array(human_vel)) < 1e-5:
                         if self.has_human_initiated:
                             #zero human vel and human has already issued some non-zero velocities during their turn,
@@ -315,7 +324,7 @@ class Simulator(object):
                     else: #if non-zero human velocity
                         if not self.has_human_initiated:
                             print('HUMAN INITIATED DURING THEIR TURN')
-                            self.env.set_information_text("Blending Mode")
+                            self.env.set_information_text("Your TURN")
                             self.has_human_initiated = True
 
                             #unfreeze belief update
@@ -341,35 +350,38 @@ class Simulator(object):
 
                     self.env.render()
 
-                    if self.disamb_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD and normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD: #maybe add other conditions such as high entropy for belief as a way to trigger
-                        print('ACTIVATING DISAMB')
-                        self.env.set_information_text("Disamb")
+                    if self.condition == 'disamb':
+                        if self.disamb_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD and normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD: #maybe add other conditions such as high entropy for belief as a way to trigger
+                            print('ACTIVATING DISAMB')
+                            self.env.set_information_text("Disamb")
 
-                        #Freeze belief update during autonomy's turn up until human activates again
-                        self.freeze_update_request.data = True
-                        self.freeze_update_srv(self.freeze_update_request)
+                            #Freeze belief update during autonomy's turn up until human activates again
+                            self.freeze_update_request.data = True
+                            self.freeze_update_srv(self.freeze_update_request)
 
-                        #get current discrete state
-                        robot_discrete_state = self.env.get_robot_current_discrete_state() #tuple (x,y,t,m)
-                        current_mode = robot_discrete_state[-1]
-                        belief_at_disamb_time = self.p_g_given_phm
-                        max_disamb_state = self.disamb_algo.get_local_disamb_state(self.p_g_given_phm, robot_discrete_state)
-                        print('MAX DISAMB STATE', max_disamb_state)
-                        # convert discrete disamb state to continous attractor position for disamb pfield
-                        max_disamb_continuous_position, max_disamb_continuous_orientation,_ = self._convert_discrete_state_to_continuous_pose(max_disamb_state, mdp_env_params["cell_size"], world_bounds)
-                        # update disamb pfield attractor
-                        self.update_attractor_ds_request.pfield_id = 'disamb'
-                        self.update_attractor_ds_request.attractor_position = list(max_disamb_continuous_position) #dummy attractor pos. Will be update after disamb computation
-                        self.update_attractor_ds_request.attractor_orientation = float(max_disamb_continuous_orientation)
-                        self.update_attractor_ds_srv(self.update_attractor_ds_request)
-                        # activate disamb flag so that autonomy can drive the robot to the disamb location
-                        self.is_disamb_on = True
+                            #get current discrete state
+                            robot_discrete_state = self.env.get_robot_current_discrete_state() #tuple (x,y,t,m)
+                            current_mode = robot_discrete_state[-1]
+                            belief_at_disamb_time = self.p_g_given_phm
+                            max_disamb_state = self.disamb_algo.get_local_disamb_state(self.p_g_given_phm, robot_discrete_state)
+                            print('MAX DISAMB STATE', max_disamb_state)
+                            # convert discrete disamb state to continous attractor position for disamb pfield
+                            max_disamb_continuous_position, max_disamb_continuous_orientation,_ = self._convert_discrete_state_to_continuous_pose(max_disamb_state, mdp_env_params["cell_size"], world_bounds)
+                            # update disamb pfield attractor
+                            self.update_attractor_ds_request.pfield_id = 'disamb'
+                            self.update_attractor_ds_request.attractor_position = list(max_disamb_continuous_position) #dummy attractor pos. Will be update after disamb computation
+                            self.update_attractor_ds_request.attractor_orientation = float(max_disamb_continuous_orientation)
+                            self.update_attractor_ds_srv(self.update_attractor_ds_request)
+                            # activate disamb flag so that autonomy can drive the robot to the disamb location
+                            self.is_disamb_on = True
 
-                        #switch current mode to disamb mode. #if disamb mdoe different from current update the message
-                        disamb_state_mode_index = max_disamb_state[-1]
-                        if disamb_state_mode_index != current_mode:
-                            self.env.set_information_text("Disamb - MODE SWITCHED")
-                        self.env.set_mode_in_robot(disamb_state_mode_index)
+                            #switch current mode to disamb mode. #if disamb mdoe different from current update the message
+                            disamb_state_mode_index = max_disamb_state[-1]
+                            if disamb_state_mode_index != current_mode:
+                                self.env.set_information_text("Disamb - MODE SWITCHED")
+                            self.env.set_mode_in_robot(disamb_state_mode_index)
+                    elif self.condition == 'disamb':
+                        pass
                         
 
                 else:
@@ -451,6 +463,8 @@ class Simulator(object):
 
     def joy_callback(self, msg):
         self.input_action['human'] = msg
+        if msg.mode_switch == True:
+            print(msg)
     
     def belief_info_callback(self, msg):
         self.p_g_given_phm = np.array(msg.p_g_given_phm)
@@ -497,18 +511,18 @@ class Simulator(object):
 
 
         print ("OBSTACLES", mdp_env_params["original_mdp_obstacles"])
-        # goal_list = create_random_goals(
-        #     width=mdp_env_params["grid_width"],
-        #     height=mdp_env_params["grid_height"],
-        #     num_goals=NUM_GOALS,
-        #     obstacle_list=mdp_env_params["original_mdp_obstacles"],
-        # )  # make the list a tuple
-        goal_list = [(9, 6, 1), (8, 8, 1), (6, 9, 1)]
+        goal_list = create_random_goals(
+            width=mdp_env_params["grid_width"],
+            height=mdp_env_params["grid_height"],
+            num_goals=NUM_GOALS,
+            obstacle_list=mdp_env_params["original_mdp_obstacles"],
+        )  # make the list a tuple
+        # goal_list = [(9, 6, 1), (8, 8, 1), (6, 9, 1)]
 
-        # for i, g in enumerate(goal_list):
-        #     g = list(g)
-        #     g.append(np.random.randint(mdp_env_params["num_discrete_orientations"]))
-        #     goal_list[i] = tuple(g)
+        for i, g in enumerate(goal_list):
+            g = list(g)
+            g.append(np.random.randint(mdp_env_params["num_discrete_orientations"]))
+            goal_list[i] = tuple(g)
 
         print (goal_list)
         mdp_env_params["all_goals"] = goal_list
@@ -601,10 +615,10 @@ class Simulator(object):
             inferred_goal_id = np.argmax(p_g_given_phm_vector)
             goal_id_str = 'goal_' + str(inferred_goal_id)
             inferred_goal_prob = p_g_given_phm_vector[inferred_goal_id]
-            return goal_id_str, inferred_goal_prob, normalized_h_of_p_g_given_phm
+            return goal_id_str, inferred_goal_id, inferred_goal_prob, normalized_h_of_p_g_given_phm
         else:
             # if entropy not greater than threshold return None as there is no confident goal
-            return None, None, normalized_h_of_p_g_given_phm
+            return None, None, None, normalized_h_of_p_g_given_phm
     
     def _compute_alpha(self, inferred_goal_prob):
         if self.confidence_slope != -1.0:
@@ -706,6 +720,7 @@ if __name__ == "__main__":
     assistance_block = sys.argv[2]
     block_id = sys.argv[3]
     training = int(sys.argv[4])
+    
     print type(subject_id), type(block_id), type(training)
     Simulator(subject_id, assistance_block, block_id, training)
     rospy.spin()

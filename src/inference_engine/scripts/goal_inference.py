@@ -227,7 +227,7 @@ class GoalInference(object):
                 else:
                     self.delayed_decay_counter += 1
             else:
-                print("Freeze update")
+                # print("Freeze update")
                 pass
         # print("Current Belief ", self.P_G_GIVEN_PHM)
 

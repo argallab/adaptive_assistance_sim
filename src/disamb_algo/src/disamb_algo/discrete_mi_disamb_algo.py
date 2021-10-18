@@ -35,6 +35,10 @@ class DiscreteMIDisambAlgo(object):
         assert "spatial_window_half_length" in self.env_params
 
         self.mdp_env_params = self.env_params["all_mdp_env_params"]
+        self.grid_width = self.mdp_env_params["grid_width"]
+        self.grid_height = self.mdp_env_params["grid_height"]
+
+        self.grid_scale = np.linalg.norm([self.grid_width, self.grid_height])
         self.mdp_list = self.env_params["mdp_list"]
         assert self.mdp_list is not None
         assert len(self.mdp_list) > 0
@@ -59,10 +63,6 @@ class DiscreteMIDisambAlgo(object):
         self.num_modes = self.env_params.get("num_modes", 3)
         self.kl_coeff = self.env_params.get("kl_coeff", 0.8)
         self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
-
-        self.avg_mi_for_valid_states = collections.OrderedDict()
-        self.avg_dist_for_valid_states_from_goals = collections.OrderedDict()
-        self.avg_total_reward_for_valid_states = collections.OrderedDict()
 
         self.distribution_directory_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "se2_personalized_distributions"
@@ -106,6 +106,7 @@ class DiscreteMIDisambAlgo(object):
 
     def _max_disambiguating_state(self):
         rewards = self.avg_total_reward_for_valid_states.values()
+        print("REWARDS FOR ALL NEIGHBORING STATES ", rewards)
         amax = np.argmax(rewards)
         max_disamb_state = list(self.avg_total_reward_for_valid_states.keys())[amax]
         return max_disamb_state
@@ -173,8 +174,19 @@ class DiscreteMIDisambAlgo(object):
                 kl = np.sum(special.rel_entr(p_phm_g_s, p_phm_s))
                 kl_list.append(kl)
 
+            # normalized to grid dimensions
+            dist_of_vs_from_goals = []
+            for goal in self.mdp_env_params["all_goals"]:
+
+                dist_of_vs_from_goal = np.linalg.norm(np.array(goal[:2]) - np.array(vs[:2]))
+                dist_of_vs_from_goal = dist_of_vs_from_goal / self.grid_scale
+                dist_of_vs_from_goals.append(dist_of_vs_from_goal)
+
+            self.avg_dist_for_valid_states_from_goals[vs] = np.mean(dist_of_vs_from_goals)
             self.avg_mi_for_valid_states[vs] = np.mean(kl_list)  # averaged over goals.
-            self.avg_total_reward_for_valid_states[vs] = self.kl_coeff * (self.avg_mi_for_valid_states[vs])
+            self.avg_total_reward_for_valid_states[vs] = self.kl_coeff * (
+                self.avg_mi_for_valid_states[vs]
+            ) - self.dist_coeff * (self.avg_dist_for_valid_states_from_goals[vs])
 
     def _compute_spatial_window_around_current_state(self, current_state):
         current_grid_loc = np.array(current_state[0:2])  # (x,y)
@@ -199,7 +211,7 @@ class DiscreteMIDisambAlgo(object):
                 if vs_mode in all_state_coords:
                     states_in_local_spatial_window.append(vs_mode)
 
-        assert len(states_in_local_spatial_window) > 0
+        assert len(states_in_local_spatial_window) > 0, current_state
         return states_in_local_spatial_window
 
     def sample_phi_given_a(self, a):  # sample from p(phii|a)
