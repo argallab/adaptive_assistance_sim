@@ -38,7 +38,7 @@ from adaptive_assistance_sim_utils import *
 GRID_WIDTH = 10
 GRID_HEIGHT = 10
 NUM_ORIENTATIONS = 8
-NUM_GOALS = 3
+NUM_GOALS = 4
 OCCUPANCY_LEVEL = 0.0
 
 SPARSITY_FACTOR = 0.0
@@ -145,7 +145,7 @@ class Simulator(object):
 
                 print ("GOALS", mdp_env_params["all_goals"])
                 # discrete_robot_state = mdp_list[0].get_random_valid_state()
-                discrete_robot_state = (0 ,0 ,0 ,1)
+                discrete_robot_state = (0 ,0 ,0 ,1) #bottom left
                 robot_position, robot_orientation, start_mode = self._convert_discrete_state_to_continuous_pose(
                     discrete_robot_state, mdp_env_params["cell_size"], world_bounds
                 )
@@ -175,7 +175,8 @@ class Simulator(object):
                 # self._init_goal_attractor_pose(self.env_params['goal_poses'][0])
 
                 self._init_goal_pfields(self.env_params['goal_poses'], mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
-                self._init_disamb_pfield(mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
+                self._init_disamb_pfield(self.env_params['goal_poses'], mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
+                self._init_generic_pfield(self.env_params['goal_poses'], mdp_env_params['dynamic_obs_specs'], mdp_env_params['cell_size'], world_bounds)
                 print('cell size ', mdp_env_params["cell_size"] )
                 self.env_params['assistance_type'] = 1
 
@@ -183,6 +184,8 @@ class Simulator(object):
                 self.env_params['spatial_window_half_length'] = 3 #number of cells
                 self.condition = 'disamb'
                 # kl_coeff, num_modes,
+                self.env_params['kl_coeff'] = 0.9
+                self.env_params['dist_coeff'] = 0.1
 
             else:
                 # training trials 
@@ -210,7 +213,6 @@ class Simulator(object):
 
         self.disamb_algo = DiscreteMIDisambAlgo(self.env_params, subject_id)
 
-
         #setup all services
         rospy.loginfo("Waiting for goal inference node")
         rospy.wait_for_service("/goal_inference/init_belief")
@@ -233,8 +235,6 @@ class Simulator(object):
         self.freeze_update_request.data = False
         self.freeze_update_srv(self.freeze_update_request)
         
-
-        
         r = rospy.Rate(100)
         self.trial_start_time = time.time()
         if not self.training:
@@ -247,11 +247,11 @@ class Simulator(object):
         self.start = False
 
         self.p_g_given_phm = (1.0/self.env_params['num_goals']) * np.ones(self.env_params['num_goals']) 
-        self.disamb_activate_ctr = 0
+        self.autonomy_activate_ctr = 0
         self.DISAMB_ACTIVATE_THRESHOLD = 100
-        self.is_disamb_on = False
+        self.is_autonomy_turn = False
         self.has_human_initiated = False
-        self.BLENDING_THRESHOLD = 10
+        self.BLENDING_THRESHOLD = 15 #distance within which thje blending kicks in 
         
         while not rospy.is_shutdown():
             if not self.start:
@@ -283,11 +283,14 @@ class Simulator(object):
                             break
                 
                 # if during human turn
-                if not self.is_disamb_on:
+                if not self.is_autonomy_turn:
                     #get current belief. and entropy of belief. compute argmax g
                     inferred_goal_id_str, inferred_goal_id, inferred_goal_prob, normalized_h_of_p_g_given_phm = self._get_most_confident_goal()
                     #get human control action in full robot control space
                     human_vel = self.env.get_mode_conditioned_velocity(self.input_action['human'].interface_signal) #robot_dim
+                    is_mode_switch = self.input_action['human'].mode_switch
+                    
+                    #autonomy inferred a valid goal
                     if inferred_goal_id_str is not None and inferred_goal_prob is not None:
                         #get pfield vel for argmax g and current robot pose
                         robot_continuous_position = self.env.get_robot_position()
@@ -300,27 +303,27 @@ class Simulator(object):
                         inferred_goal_pose = self.env_params['goal_poses'][inferred_goal_id]
                         inferred_goal_position = inferred_goal_pose[:-1]
                         if np.linalg.norm(np.array(robot_continuous_position) - np.array(inferred_goal_position)) < self.BLENDING_THRESHOLD:
-                            print('close to goal hence blending')
+                            #within blending threshold, therefore blend
                             self.alpha = self._compute_alpha(inferred_goal_prob)
                         else:
+                            # pure human teleop because outside of blending zone
                             self.alpha = 0.0
                     else:
-                        # no inferred goal, hence autonomy vel is zeor
+                        # no inferred goal due to high entropy of goal belief, hence autonomy vel is zero
                         autonomy_vel = list([0.0] * np.array(human_vel).shape[0]) #0.0 autonomy vel
                         self.alpha = 0.0 #no autonomy, purely human vel
-                
-                    # print('ALPHA and GOAL ', self.alpha, inferred_goal_id_str)
-                    # print('HUMAN and AUTONOMY MAG ', np.linalg.norm(np.array(human_vel)), np.linalg.norm(np.array(autonomy_vel)))
-                    #blend velocity by combining it with user vel.
-                    # apply blend velocity to robot. 
-                    blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
-                    self.input_action['full_control_signal'] = blend_vel
                     
-                    if np.linalg.norm(np.array(human_vel)) < 1e-5:
+                    
+                    # blend autonomy velocity by combining it with user vel.
+                    blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
+                    # apply blend velocity to robot. 
+                    self.input_action['full_control_signal'] = blend_vel
+                    # print(is_mode_switch)
+                    if np.linalg.norm(np.array(human_vel)) < 1e-5 and is_mode_switch == False:
                         if self.has_human_initiated:
                             #zero human vel and human has already issued some non-zero velocities during their turn,
                             #in which case keep track of inactivity time
-                            self.disamb_activate_ctr += 1
+                            self.autonomy_activate_ctr += 1
                     else: #if non-zero human velocity
                         if not self.has_human_initiated:
                             print('HUMAN INITIATED DURING THEIR TURN')
@@ -330,8 +333,9 @@ class Simulator(object):
                             #unfreeze belief update
                             self.freeze_update_request.data = False
                             self.freeze_update_srv(self.freeze_update_request)
-                            
-                        self.disamb_activate_ctr = 0
+                        
+                        #reset the activate ctr because human is providing non zero commands. 
+                        self.autonomy_activate_ctr = 0
 
                     if self.restart:
                         pass
@@ -350,8 +354,9 @@ class Simulator(object):
 
                     self.env.render()
 
+                    #checks to whether trigger the autonomy turn
                     if self.condition == 'disamb':
-                        if self.disamb_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD and normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD: #maybe add other conditions such as high entropy for belief as a way to trigger
+                        if self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD and normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD: #maybe add other conditions such as high entropy for belief as a way to trigger
                             print('ACTIVATING DISAMB')
                             self.env.set_information_text("Disamb")
 
@@ -373,24 +378,34 @@ class Simulator(object):
                             self.update_attractor_ds_request.attractor_orientation = float(max_disamb_continuous_orientation)
                             self.update_attractor_ds_srv(self.update_attractor_ds_request)
                             # activate disamb flag so that autonomy can drive the robot to the disamb location
-                            self.is_disamb_on = True
+                            self.is_autonomy_turn = True
 
                             #switch current mode to disamb mode. #if disamb mdoe different from current update the message
                             disamb_state_mode_index = max_disamb_state[-1]
                             if disamb_state_mode_index != current_mode:
                                 self.env.set_information_text("Disamb - MODE SWITCHED")
                             self.env.set_mode_in_robot(disamb_state_mode_index)
-                    elif self.condition == 'disamb':
+                    elif self.condition == "control":
+                        #check if ctr is past the threshold
+                        # if so, get current inferred goal. 
+                        # connect the line joining current position and inferref goal position. 
+                        # compute the point at distance R along the line.
+                        # update generic pfield position. 
+                        # set autonomy turn flag. 
+                        # update mode if necessary
                         pass
-                        
-
                 else:
-                    # print('IN DISAMB BLOCK')
+                    # what to do during autonomy turn
+                    
                     robot_continuous_position = self.env.get_robot_position()
                     robot_continuous_orientation = self.env.get_robot_orientation()
                     self.compute_velocity_request.current_pos  = robot_continuous_position
                     self.compute_velocity_request.current_orientation = robot_continuous_orientation
-                    self.compute_velocity_request.pfield_id = 'disamb' #get disamb pfield vel
+                    if self.condition == "disamb":
+                        self.compute_velocity_request.pfield_id = 'disamb' #get disamb pfield vel
+                    elif self.condition == 'generic':
+                        self.compute_velocity_request.pfield_id = 'generic'
+
                     vel_response = self.compute_velocity_srv(self.compute_velocity_request)
                     autonomy_vel = list(vel_response.velocity_final)
                     # print(np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)))
@@ -403,13 +418,12 @@ class Simulator(object):
                         self.reset_belief_request.p_g_given_phm = list(belief_at_disamb_time)
                         self.reset_belief_srv(self.reset_belief_request)
 
-                        self.is_disamb_on = False
+                        self.is_autonomy_turn = False
                         # reset human initiator flag for next turn. 
                         self.has_human_initiated = False
                         self.env.set_information_text("Waiting...")
-                        self.disamb_activate_ctr = 0
+                        self.autonomy_activate_ctr = 0
 
-                        
                     else:
                         # use only autonomy vel to move towards the local disamb state. 
                         self.input_action['full_control_signal'] = np.array(autonomy_vel)
@@ -423,9 +437,6 @@ class Simulator(object):
                     
 
                     self.env.render()
-                    
-                    # print(autonomy_vel)
-                # print('DISAMB CTR ', self.disamb_activate_ctr)
             
             r.sleep()
     
@@ -463,8 +474,8 @@ class Simulator(object):
 
     def joy_callback(self, msg):
         self.input_action['human'] = msg
-        if msg.mode_switch == True:
-            print(msg)
+        # if msg.mode_switch == True:
+        #     print(msg)
     
     def belief_info_callback(self, msg):
         self.p_g_given_phm = np.array(msg.p_g_given_phm)
@@ -543,13 +554,78 @@ class Simulator(object):
             blend_vel = np.zeros_like(human_vel)
         return blend_vel
 
-    def _init_disamb_pfield(self, obs_param_dict_list, cell_size, world_bounds):
+    def _init_generic_pfield(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds):
         common_obs_descs_list = self._init_pfield_obs_desc(obs_param_dict_list, cell_size, world_bounds)
-        self.init_obstacles_request.num_obstacles = len(obs_param_dict_list)
+        cell_size_x = cell_size['x']
+        cell_size_y = cell_size['y']
+        num_goals = len(continuous_goal_poses)
+        self.init_obstacles_request.num_obstacles = len(obs_param_dict_list) + num_goals
+        self.init_obstacles_request.obs_descs = []
+        self.init_obstacles_request.obs_descs = copy.deepcopy(common_obs_descs_list)
+        self.init_obstacles_request.pfield_id = 'generic'
+        # add all goals as "obstacles" to the disamb pfield
+        for goal_pose in continuous_goal_poses:
+            goal_obs_desc = CuboidObs()
+            bottom_left_cell_x = goal_pose[0]
+            bottom_left_cell_y = goal_pose[1]
+            true_width_of_obs_in_cells = 1
+            true_height_of_obs_in_cells = 1
+
+            center_position_x = (bottom_left_cell_x  + true_width_of_obs_in_cells * 0.5) * cell_size_x + world_bounds["xrange"]["lb"]
+            center_position_y = (bottom_left_cell_y  + true_height_of_obs_in_cells * 0.5) * cell_size_y + world_bounds["yrange"]["lb"]
+            axes_0 = true_width_of_obs_in_cells * cell_size_x #assuming axis 0 is the width
+            axes_1 = true_height_of_obs_in_cells * cell_size_y #assuming axis 1 is height
+
+            # populate the obs desc msg for other goal pose
+            goal_obs_desc.center_position = [center_position_x, center_position_y]
+            goal_obs_desc.orientation = 0.0
+            goal_obs_desc.axes_length = [axes_0, axes_1]
+            goal_obs_desc.is_boundary = False
+
+            self.init_obstacles_request.obs_descs.append(goal_obs_desc)
+
+        assert len(self.init_obstacles_request.obs_descs) == self.init_obstacles_request.num_obstacles
+
+        self.init_obstacles_srv(self.init_obstacles_request)
+
+        self.update_attractor_ds_request.pfield_id = 'generic'
+        self.update_attractor_ds_request.attractor_position = [0.0, 0.0] #dummy attractor pos. Will be update after point towards giak  computation
+        self.update_attractor_ds_request.attractor_orientation = 0.0
+        self.update_attractor_ds_srv(self.update_attractor_ds_request)
+
+
+    def _init_disamb_pfield(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds):
+        common_obs_descs_list = self._init_pfield_obs_desc(obs_param_dict_list, cell_size, world_bounds)
+        cell_size_x = cell_size['x']
+        cell_size_y = cell_size['y']
+        num_goals = len(continuous_goal_poses)
+        self.init_obstacles_request.num_obstacles = len(obs_param_dict_list) + num_goals
         self.init_obstacles_request.obs_descs = []
         self.init_obstacles_request.obs_descs = copy.deepcopy(common_obs_descs_list)
         self.init_obstacles_request.pfield_id = 'disamb'
+        # add all goals as "obstacles" to the disamb pfield
+        for goal_pose in continuous_goal_poses:
+            goal_obs_desc = CuboidObs()
+            bottom_left_cell_x = goal_pose[0]
+            bottom_left_cell_y = goal_pose[1]
+            true_width_of_obs_in_cells = 1
+            true_height_of_obs_in_cells = 1
+
+            center_position_x = (bottom_left_cell_x  + true_width_of_obs_in_cells * 0.5) * cell_size_x + world_bounds["xrange"]["lb"]
+            center_position_y = (bottom_left_cell_y  + true_height_of_obs_in_cells * 0.5) * cell_size_y + world_bounds["yrange"]["lb"]
+            axes_0 = true_width_of_obs_in_cells * cell_size_x #assuming axis 0 is the width
+            axes_1 = true_height_of_obs_in_cells * cell_size_y #assuming axis 1 is height
+
+            # populate the obs desc msg for other goal pose
+            goal_obs_desc.center_position = [center_position_x, center_position_y]
+            goal_obs_desc.orientation = 0.0
+            goal_obs_desc.axes_length = [axes_0, axes_1]
+            goal_obs_desc.is_boundary = False
+
+            self.init_obstacles_request.obs_descs.append(goal_obs_desc)
+
         assert len(self.init_obstacles_request.obs_descs) == self.init_obstacles_request.num_obstacles
+
         self.init_obstacles_srv(self.init_obstacles_request)
 
         self.update_attractor_ds_request.pfield_id = 'disamb'

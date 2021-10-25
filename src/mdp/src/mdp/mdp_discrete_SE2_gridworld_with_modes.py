@@ -359,9 +359,22 @@ class MDPDiscreteSE2GridWorldWithModes(DiscreteMDP):
     def get_all_state_coords(self):
         # return the list of all states as coords except obstacles and goals.
         state_coord_list = []
-        for state_id in self.empty_cell_id_list:
+        for state_id in self.empty_cell_id_list:  # already excludes the obstacles in empty cell_id list
             state_coord = self._convert_1D_state_to_grid_coords(state_id)
             if self._check_if_state_coord_is_goal_state(state_coord):
+                continue
+            else:
+                state_coord_list.append(state_coord)
+
+        return state_coord_list
+
+    def get_all_state_coords_with_grid_locs_diff_from_goals_and_obs(self):
+        state_coord_list = []
+        for state_id in self.empty_cell_id_list:
+            state_coord = self._convert_1D_state_to_grid_coords(state_id)
+            grid_loc_for_state = self._get_grid_loc_from_state_coord(state_coord)  # tuple
+            # if the grid loc of state matches the grid loc of goal state skip.
+            if grid_loc_for_state == self.get_goal_state()[0:2]:
                 continue
             else:
                 state_coord_list.append(state_coord)

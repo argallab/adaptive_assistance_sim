@@ -63,6 +63,7 @@ class DiscreteMIDisambAlgo(object):
         self.num_modes = self.env_params.get("num_modes", 3)
         self.kl_coeff = self.env_params.get("kl_coeff", 0.8)
         self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
+        print(self.kl_coeff, self.dist_coeff)
 
         self.distribution_directory_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "se2_personalized_distributions"
@@ -117,12 +118,12 @@ class DiscreteMIDisambAlgo(object):
         self.avg_total_reward_for_valid_states = collections.OrderedDict()
 
         assert len(prior) == self.num_goals
-
+        prior = prior / np.sum(prior)  # normalizing to make sure random choice works
         for i, vs in enumerate(states_for_disamb_computation):
             # print("Computing MI for ", vs)
             traj_list = collections.defaultdict(list)
             for t in range(self.num_sample_trajectories):
-                sampled_goal_index = np.random.choice(self.num_goals)
+                sampled_goal_index = np.random.choice(self.num_goals, p=prior)
                 mdp_for_sampled_goal = self.mdp_list[sampled_goal_index]
                 # sub optimal a_sampled
                 a_sampled = mdp_for_sampled_goal.get_optimal_action(vs, return_optimal=False)
@@ -194,11 +195,15 @@ class DiscreteMIDisambAlgo(object):
         current_orientation = current_state[2]
 
         # Add todo to ensure that self.mdp list is not None
-        all_state_coords = self.mdp_list[0].get_all_state_coords()
-        window_coordinates = itertools.product(
-            range(-self.SPATIAL_WINDOW_HALF_LENGTH + 1, self.SPATIAL_WINDOW_HALF_LENGTH),
-            range(-self.SPATIAL_WINDOW_HALF_LENGTH + 1, self.SPATIAL_WINDOW_HALF_LENGTH),
+        # all states except goal states
+        all_state_coords = self.mdp_list[0].get_all_state_coords_with_grid_locs_diff_from_goals_and_obs()
+        window_coordinates = list(
+            itertools.product(
+                range(-self.SPATIAL_WINDOW_HALF_LENGTH + 1, self.SPATIAL_WINDOW_HALF_LENGTH),
+                range(-self.SPATIAL_WINDOW_HALF_LENGTH + 1, self.SPATIAL_WINDOW_HALF_LENGTH),
+            )
         )
+        print("LOCAL 2D WINDOW ", window_coordinates)
         for wc in window_coordinates:
             vs = current_grid_loc + np.array(wc)  # 2d grid loc
             for mode in range(self.num_modes):  #
@@ -210,6 +215,8 @@ class DiscreteMIDisambAlgo(object):
                 )  # same orientation as the current state for all states under consideration
                 if vs_mode in all_state_coords:
                     states_in_local_spatial_window.append(vs_mode)
+
+        print("LOCAL WINDOW ", states_in_local_spatial_window)
 
         assert len(states_in_local_spatial_window) > 0, current_state
         return states_in_local_spatial_window
