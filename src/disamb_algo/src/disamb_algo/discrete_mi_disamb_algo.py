@@ -118,7 +118,7 @@ class DiscreteMIDisambAlgo(object):
         self.avg_total_reward_for_valid_states = collections.OrderedDict()
 
         assert len(prior) == self.num_goals
-        prior = prior / np.sum(prior)  # normalizing to make sure random choice works
+        prior = prior / np.sum(prior)  # normalizing to make sure random choice works #todo maybe add some minor noise
         for i, vs in enumerate(states_for_disamb_computation):
             # print("Computing MI for ", vs)
             traj_list = collections.defaultdict(list)

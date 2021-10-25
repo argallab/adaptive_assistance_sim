@@ -182,7 +182,7 @@ class Simulator(object):
 
                 #disamb algo specific params
                 self.env_params['spatial_window_half_length'] = 3 #number of cells
-                self.condition = 'disamb'
+                self.condition = 'control'
                 # kl_coeff, num_modes,
                 self.env_params['kl_coeff'] = 0.9
                 self.env_params['dist_coeff'] = 0.1
@@ -285,7 +285,7 @@ class Simulator(object):
                 # if during human turn
                 if not self.is_autonomy_turn:
                     #get current belief. and entropy of belief. compute argmax g
-                    inferred_goal_id_str, inferred_goal_id, inferred_goal_prob, normalized_h_of_p_g_given_phm = self._get_most_confident_goal()
+                    inferred_goal_id_str, inferred_goal_id, inferred_goal_prob, normalized_h_of_p_g_given_phm, argmax_goal_id, argmax_goal_id_str = self._get_most_confident_goal()
                     #get human control action in full robot control space
                     human_vel = self.env.get_mode_conditioned_velocity(self.input_action['human'].interface_signal) #robot_dim
                     is_mode_switch = self.input_action['human'].mode_switch
@@ -387,9 +387,27 @@ class Simulator(object):
                             self.env.set_mode_in_robot(disamb_state_mode_index)
                     elif self.condition == "control":
                         #check if ctr is past the threshold
-                        # if so, get current inferred goal. 
-                        # connect the line joining current position and inferref goal position. 
-                        # compute the point at distance R along the line.
+                        if self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD:
+                            print('ACTIVATING AUTONOMY')
+                            self.env.set_information_text('AUTONOMY')
+
+                            #Freeze belief update during autonomy's turn up until human activates again
+                            self.freeze_update_request.data = True
+                            self.freeze_update_srv(self.freeze_update_request)
+
+                            belief_at_disamb_time = self.p_g_given_phm
+                            # if so, get current argmax goal pose 
+                            argmax_goal_pose = self.env_params['goal_poses'][argmax_goal_id]
+                            argmax_goal_position = argmax_goal_pose[:-1]
+                            # connect the line joining current position and inferref goal position. 
+                            target_point = self._get_target_along_line(robot_continuous_position, argmax_goal_position)
+                            self.update_attractor_ds_request.pfield_id = 'generic'
+                            self.update_attractor_ds_request.attractor_position = list(target_point)
+                            self.update_attractor_ds_request.attractor_orientation = float(robot_continuous_orientation)
+                            self.update_attractor_ds_srv(self.update_attractor_ds_request)
+                            self.is_autonomy_turn = True
+
+                            # compute the point at distance R along the line.
                         # update generic pfield position. 
                         # set autonomy turn flag. 
                         # update mode if necessary
@@ -410,30 +428,57 @@ class Simulator(object):
                     autonomy_vel = list(vel_response.velocity_final)
                     # print(np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)))
                     # print(np.linalg.norm(autonomy_vel))
-                    if np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)) < 0.1:
-                        print('DONE WITH DISAMB PHASE')
-                        # reset belief to what it was when the disamb mode was activated. 
-                        print('RESET BELIEF')
-                        self.reset_belief_request.num_goals = self.env_params["num_goals"]
-                        self.reset_belief_request.p_g_given_phm = list(belief_at_disamb_time)
-                        self.reset_belief_srv(self.reset_belief_request)
+                    if self.condition == 'disamb':
+                        if np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)) < 0.1:
+                            print('DONE WITH DISAMB PHASE')
+                            # reset belief to what it was when the disamb mode was activated. 
+                            print('RESET BELIEF')
+                            self.reset_belief_request.num_goals = self.env_params["num_goals"]
+                            self.reset_belief_request.p_g_given_phm = list(belief_at_disamb_time)
+                            self.reset_belief_srv(self.reset_belief_request)
 
-                        self.is_autonomy_turn = False
-                        # reset human initiator flag for next turn. 
-                        self.has_human_initiated = False
-                        self.env.set_information_text("Waiting...")
-                        self.autonomy_activate_ctr = 0
+                            self.is_autonomy_turn = False
+                            # reset human initiator flag for next turn. 
+                            self.has_human_initiated = False
+                            self.env.set_information_text("Waiting...")
+                            self.autonomy_activate_ctr = 0
 
-                    else:
-                        # use only autonomy vel to move towards the local disamb state. 
-                        self.input_action['full_control_signal'] = np.array(autonomy_vel)
-                        
-                        (
-                            robot_continuous_position,
-                            robot_continuous_orientation,
-                            robot_discrete_state, 
-                            is_done,
-                        ) = self.env.step(self.input_action)
+                        else:
+                            # use only autonomy vel to move towards the local disamb state. 
+                            self.input_action['full_control_signal'] = np.array(autonomy_vel)
+                            
+                            (
+                                robot_continuous_position,
+                                robot_continuous_orientation,
+                                robot_discrete_state, 
+                                is_done,
+                            ) = self.env.step(self.input_action)
+                    elif self.condition == "control":
+                        if np.linalg.norm(np.array(robot_continuous_position) - np.array(target_point)) < 0.1:
+                            print('DONE WITH AUTONOMY PHASE')
+                            # reset belief to what it was when the disamb mode was activated. 
+                            print('RESET BELIEF')
+                            self.reset_belief_request.num_goals = self.env_params["num_goals"]
+                            self.reset_belief_request.p_g_given_phm = list(belief_at_disamb_time)
+                            self.reset_belief_srv(self.reset_belief_request)
+
+                            self.is_autonomy_turn = False
+                            # reset human initiator flag for next turn. 
+                            self.has_human_initiated = False
+                            self.env.set_information_text("Waiting...")
+                            self.autonomy_activate_ctr = 0
+
+                        else:
+                            # use only autonomy vel to move towards the local disamb state. 
+                            self.input_action['full_control_signal'] = np.array(autonomy_vel)
+                            
+                            (
+                                robot_continuous_position,
+                                robot_continuous_orientation,
+                                robot_discrete_state, 
+                                is_done,
+                            ) = self.env.step(self.input_action)
+
                     
 
                     self.env.render()
@@ -681,20 +726,31 @@ class Simulator(object):
             self.update_attractor_ds_request.attractor_orientation = goal_pose[-1] #goal orientation
             self.update_attractor_ds_srv(self.update_attractor_ds_request)
 
-    
+    def _get_target_along_line(self, start_point, end_point, R=10.0):
+        
+        D = np.linalg.norm(np.array(end_point) - np.array(start_point))
+        R = min(R, D)
+        target_x = start_point[0] + (R/D) * (end_point[0] - start_point[0])
+        target_y = start_point[1] + (R/D) * (end_point[1] - start_point[1])
+        print('DISTANCE ', D, R)
+        target = np.array([target_x, target_y])
+        return target
+
     def _get_most_confident_goal(self):
         p_g_given_phm_vector = self.p_g_given_phm + np.finfo(self.p_g_given_phm.dtype).tiny
         uniform_distribution = np.array([1.0 / p_g_given_phm_vector.size] * p_g_given_phm_vector.size)
         max_entropy = -np.dot(uniform_distribution, np.log2(uniform_distribution))
         normalized_h_of_p_g_given_phm = -np.dot(p_g_given_phm_vector, np.log2(p_g_given_phm_vector)) / max_entropy
+        argmax_goal_id = np.argmax(p_g_given_phm_vector)
+        argmax_goal_id_str = 'goal_' + str(argmax_goal_id)
         if normalized_h_of_p_g_given_phm <= self.ENTROPY_THRESHOLD:
             inferred_goal_id = np.argmax(p_g_given_phm_vector)
             goal_id_str = 'goal_' + str(inferred_goal_id)
             inferred_goal_prob = p_g_given_phm_vector[inferred_goal_id]
-            return goal_id_str, inferred_goal_id, inferred_goal_prob, normalized_h_of_p_g_given_phm
+            return goal_id_str, inferred_goal_id, inferred_goal_prob, normalized_h_of_p_g_given_phm, argmax_goal_id, argmax_goal_id_str
         else:
             # if entropy not greater than threshold return None as there is no confident goal
-            return None, None, None, normalized_h_of_p_g_given_phm
+            return None, None, None, normalized_h_of_p_g_given_phm, argmax_goal_id, argmax_goal_id_str
     
     def _compute_alpha(self, inferred_goal_prob):
         if self.confidence_slope != -1.0:
