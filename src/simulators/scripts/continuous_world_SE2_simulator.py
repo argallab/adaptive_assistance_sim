@@ -302,12 +302,15 @@ class Simulator(object):
                         autonomy_vel = list(vel_response.velocity_final)
                         inferred_goal_pose = self.env_params['goal_poses'][inferred_goal_id]
                         inferred_goal_position = inferred_goal_pose[:-1]
-                        if np.linalg.norm(np.array(robot_continuous_position) - np.array(inferred_goal_position)) < self.BLENDING_THRESHOLD:
-                            #within blending threshold, therefore blend
-                            self.alpha = self._compute_alpha(inferred_goal_prob)
-                        else:
-                            # pure human teleop because outside of blending zone
-                            self.alpha = 0.0
+                        dist_weight = self._dist_based_weight(self.env_params['goal_poses'][inferred_goal_id][:-1], robot_continuous_position)
+                        self.alpha = self._compute_alpha(inferred_goal_prob) * dist_weight
+                        print('ALPHA ', self.alpha, dist_weight)
+                        # if np.linalg.norm(np.array(robot_continuous_position) - np.array(inferred_goal_position)) < self.BLENDING_THRESHOLD:
+                        #     #within blending threshold, therefore blend
+                        #     self.alpha = self._compute_alpha(inferred_goal_prob)
+                        # else:
+                        #     # pure human teleop because outside of blending zone
+                        #     self.alpha = 0.0
                     else:
                         # no inferred goal due to high entropy of goal belief, hence autonomy vel is zero
                         autonomy_vel = list([0.0] * np.array(human_vel).shape[0]) #0.0 autonomy vel
@@ -610,6 +613,9 @@ class Simulator(object):
             blend_vel = np.zeros_like(human_vel)
         return blend_vel
 
+
+    #INITIALIZE PFIELDS
+
     def _init_generic_pfield(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds):
         common_obs_descs_list = self._init_pfield_obs_desc(obs_param_dict_list, cell_size, world_bounds)
         cell_size_x = cell_size['x']
@@ -776,6 +782,19 @@ class Simulator(object):
                 return 0.0
             else:
                 return self.alpha_max
+    
+    def _dist_based_weight(self, inferred_goal_position, robot_continuous_position, D=10.0, scale_factor=5):
+        
+        d = np.linalg.norm(inferred_goal_position - np.array(robot_continuous_position))
+        weight_D = 0.6
+        if d <= D:
+            slope = - ((1.0 - weight_D) / D)
+            dist_weight = slope * d + 1.0
+        elif d > D:
+            dist_weight = weight_D*np.exp(-(d-D))
+        return dist_weight
+        
+
 
     def _init_pfield_obs_desc(self, obs_param_dict_list, cell_size, world_bounds):
         cell_size_x = cell_size['x']
