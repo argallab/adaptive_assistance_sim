@@ -157,6 +157,11 @@ class ContinuousWorldSE2Env(object):
                 linewidth=3.0,
             )
 
+    def render_clear(self, msg):
+        self.viewer.window.clear()
+        self._render_text(msg, COMMAND_DISPLAY_POSITION)
+        return self.viewer.render(False)
+
     def _render_goals(self):
         for i in range(self.num_goals):
             shape = "circle"
@@ -308,6 +313,9 @@ class ContinuousWorldSE2Env(object):
             self.viewer.set_bounds(0, VIEWPORT_W / SCALE, 0, VIEWPORT_H / SCALE)
             self.viewer.window.set_location(650, 300)
             self.timer_thread.start()
+
+    def close_window(self):
+        self.viewer.close()
 
     def start_countdown(self):
         if self.ready_for_new_prompt:

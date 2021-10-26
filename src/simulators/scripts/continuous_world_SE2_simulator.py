@@ -275,7 +275,7 @@ class Simulator(object):
                             self.env.render_clear("Loading next trial ...")
                             time.sleep(5.0)  # sleep before the next trial happens
                             self.trial_index += 1
-                            if self.trial_index == 2:
+                            if self.trial_index == 1:
                                 self.shutdown_hook("Reached end of trial list. End of session")
                                 break  # experiment is done
                         else:
@@ -347,6 +347,12 @@ class Simulator(object):
                         is_done,
                     ) = self.env.step(self.input_action)
                 
+                    # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
+                    if tuple(robot_discrete_state[:-1]) in self.env_params['all_mdp_env_params']['all_goals']:
+                        index_goal = self.env_params['all_mdp_env_params']['all_goals'].index(tuple(robot_discrete_state[:-1]))
+                        goal_continuous_position = self.env_params['goal_poses'][index_goal][:-1] 
+                        if np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0: #determine threshold
+                            is_done = True
 
                     if self.terminate:
                         self.shutdown_hook("Session terminated")
@@ -421,7 +427,7 @@ class Simulator(object):
                     self.compute_velocity_request.current_orientation = robot_continuous_orientation
                     if self.condition == "disamb":
                         self.compute_velocity_request.pfield_id = 'disamb' #get disamb pfield vel
-                    elif self.condition == 'generic':
+                    elif self.condition == 'control':
                         self.compute_velocity_request.pfield_id = 'generic'
 
                     vel_response = self.compute_velocity_srv(self.compute_velocity_request)
@@ -429,6 +435,7 @@ class Simulator(object):
                     # print(np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)))
                     # print(np.linalg.norm(autonomy_vel))
                     if self.condition == 'disamb':
+                        print('dist to disamb ', np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)))
                         if np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)) < 0.1:
                             print('DONE WITH DISAMB PHASE')
                             # reset belief to what it was when the disamb mode was activated. 
@@ -454,7 +461,8 @@ class Simulator(object):
                                 is_done,
                             ) = self.env.step(self.input_action)
                     elif self.condition == "control":
-                        if np.linalg.norm(np.array(robot_continuous_position) - np.array(target_point)) < 0.1:
+                        print(' dist to target', np.linalg.norm(np.array(robot_continuous_position) - np.array(target_point)))
+                        if np.linalg.norm(np.array(robot_continuous_position) - np.array(target_point)) < 2.0:
                             print('DONE WITH AUTONOMY PHASE')
                             # reset belief to what it was when the disamb mode was activated. 
                             print('RESET BELIEF')
@@ -486,6 +494,7 @@ class Simulator(object):
             r.sleep()
     
     def _generate_continuous_goal_poses(self, discrete_goal_list, cell_size, world_bounds):
+        #could be moved outside
         goal_poses = []
         for dg in discrete_goal_list:
             goal_pose = [0, 0, 0]
@@ -497,12 +506,14 @@ class Simulator(object):
         return goal_poses
 
     def _random_robot_pose(self):
+        #could be moved to utils
         robot_position = [0.5 * VIEWPORT_W / SCALE, 0.25 * VIEWPORT_H / SCALE]
         robot_orientation = 0.0
         # add proximity checks to any goals
         return (robot_position, robot_orientation)
 
     def _convert_discrete_state_to_continuous_pose(self, discrete_state, cell_size, world_bounds):
+        #could be moved to utils
         x_coord = discrete_state[0]
         y_coord = discrete_state[1]
         theta_coord = discrete_state[2]
@@ -638,7 +649,6 @@ class Simulator(object):
         self.update_attractor_ds_request.attractor_orientation = 0.0
         self.update_attractor_ds_srv(self.update_attractor_ds_request)
 
-
     def _init_disamb_pfield(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds):
         common_obs_descs_list = self._init_pfield_obs_desc(obs_param_dict_list, cell_size, world_bounds)
         cell_size_x = cell_size['x']
@@ -729,11 +739,12 @@ class Simulator(object):
     def _get_target_along_line(self, start_point, end_point, R=10.0):
         
         D = np.linalg.norm(np.array(end_point) - np.array(start_point))
-        R = min(R, D)
+        R = min(R, D/2)
         target_x = start_point[0] + (R/D) * (end_point[0] - start_point[0])
         target_y = start_point[1] + (R/D) * (end_point[1] - start_point[1])
-        print('DISTANCE ', D, R)
+        
         target = np.array([target_x, target_y])
+        print('DISTANCE ', D, R, start_point, end_point, target)
         return target
 
     def _get_most_confident_goal(self):
