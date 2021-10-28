@@ -53,6 +53,7 @@ class Dim(Enum):  # potential split the "state dimension" and "action dimensions
     VY = 1  # dimension of action for y dimension
     W = 0  # angular velocity dimension for nonholonomic system
     V = 1  # linear velocity dimension for NH system
+    Z = 2
     Mode2D = 2
     Theta = 2
     ModeSE2_NH = 3
