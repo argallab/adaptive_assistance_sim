@@ -61,7 +61,7 @@ class HybridControlInput(object):
             else:
                 rospy.logwarn("Sending data took longer than the specified period.")
 
-    def receive(*args, **kwargs):
+    def receive(self, *args, **kwargs):
         """
         Receive method, to be passed to the subscriber as a callback.
 
@@ -71,7 +71,7 @@ class HybridControlInput(object):
 
         raise NotImplementedError
 
-    def getDefaultData(*args, **kwargs):
+    def getDefaultData(self, *args, **kwargs):
         """
         Returns whatever message should be sent when no data has been received.
 
