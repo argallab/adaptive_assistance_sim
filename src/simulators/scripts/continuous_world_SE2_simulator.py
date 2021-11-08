@@ -472,7 +472,6 @@ class Simulator(object):
                         # update generic pfield position.
                         # set autonomy turn flag.
                         # update mode if necessary
-                        pass
                 else:
                     # what to do during autonomy turn
 
@@ -718,7 +717,7 @@ class Simulator(object):
 
         self.update_attractor_ds_request.pfield_id = pfield_id
         # dummy attractor pos. Will be update after point towards goal  computation
-        self.update_attractor_ds_request.attractor_position = [0.0,0.0]
+        self.update_attractor_ds_request.attractor_position = [0.0, 0.0]
         self.update_attractor_ds_request.attractor_orientation = 0.0
         self.update_attractor_ds_srv(self.update_attractor_ds_request)
 
