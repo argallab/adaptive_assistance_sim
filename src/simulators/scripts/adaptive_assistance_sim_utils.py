@@ -162,6 +162,7 @@ TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP = collections.OrderedDict(
 TRUE_INTERFACE_ACTION_TO_TASK_ACTION_MAP = collections.OrderedDict(
     {v: k for k, v in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.items()}
 )
+
 INTERFACE_LEVEL_ACTIONS_TO_NUMBER_ID = {"Soft Puff": 0, "Soft Sip": 1, "Hard Puff": 2, "Hard Sip": 3}
 
 
@@ -433,6 +434,8 @@ class RobotSE2(object):
         true_velocity = [0] * self.robot_dim
         for acd, mcd in zip(_allowed_control_dimensions, _mappable_control_dimensions):
             true_velocity[acd] = velocity_action[mcd]
+
+        true_velocity[-1] = true_velocity[-1] * -1.0
 
         return true_velocity
 

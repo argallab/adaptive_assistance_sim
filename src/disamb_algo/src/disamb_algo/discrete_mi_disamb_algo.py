@@ -230,9 +230,8 @@ class DiscreteMIDisambAlgo(object):
             p_vector = self.P_PHI_GIVEN_A[a].values()  # list of probabilities for phii
             # sample from the multinomial distribution with distribution p_vector
             phi_index_vector = np.random.multinomial(1, p_vector)
-            phi_index = np.nonzero(phi_index_vector)[0][
-                0
-            ]  # grab the index of the index_vector which had a nonzero entry
+            # grab the index of the index_vector which had a nonzero entry
+            phi_index = np.nonzero(phi_index_vector)[0][0]
             phi = self.P_PHI_GIVEN_A[a].keys()[phi_index]  # retrieve phii using the phi_index
             # will be not None
 

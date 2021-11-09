@@ -166,7 +166,7 @@ class MDPDiscreteSE2GridWorldWithModes(DiscreteMDP):
                 new_state_t = state_coord[Dim.Theta.value]
                 new_state_x = new_state_x + vel_tuple[Dim.X.value]
                 new_state_y = new_state_y + vel_tuple[Dim.Y.value]
-                # negative because positive vel component should result in clockwise motion
+                # negative because positive vel component should result in clockwise motion. positive vel component comes from move_p
                 new_state_t = (new_state_t - vel_tuple[Dim.Theta.value]) % len(self.orientations)
                 new_state_coord = [new_state_x, new_state_y, new_state_t, state_coord[Dim.ModeSE2.value]]
                 transition_type = TransitionType.VALID
