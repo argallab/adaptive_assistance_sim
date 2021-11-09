@@ -347,6 +347,9 @@ class MDPDiscreteSE2GridWorldWithModes(DiscreteMDP):
                 # scalar state id
                 rand_state_id = self.empty_cell_id_list[np.random.randint(len(self.empty_cell_id_list))]
                 state_coord = self._convert_1D_state_to_grid_coords(rand_state_id)
+        else:
+            rand_state_id = self.empty_cell_id_list[np.random.randint(len(self.empty_cell_id_list))]
+            state_coord = self._convert_1D_state_to_grid_coords(rand_state_id)
 
         return state_coord  # tuple (x,y, t mode)
 
