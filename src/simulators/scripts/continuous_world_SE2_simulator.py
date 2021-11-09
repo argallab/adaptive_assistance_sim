@@ -402,50 +402,70 @@ class Simulator(object):
 
                     # checks to whether trigger the autonomy turn
                     if self.condition == "disamb":
-                        if (
-                            self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD
-                            and normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD
-                        ):  # maybe add other conditions such as high entropy for belief as a way to trigger
-                            print ("ACTIVATING DISAMB")
-                            self.env.set_information_text("Disamb")
+                        # maybe add other conditions such as high entropy for belief as a way to trigger
+                        if (self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD):
+                            if normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD:
+                                print ("ACTIVATING DISAMB")
+                                self.env.set_information_text("DISAMB")
 
-                            # Freeze belief update during autonomy's turn up until human activates again
-                            self.freeze_update_request.data = True
-                            self.freeze_update_srv(self.freeze_update_request)
+                                # Freeze belief update during autonomy's turn up until human activates again
+                                self.freeze_update_request.data = True
+                                self.freeze_update_srv(self.freeze_update_request)
 
-                            # get current discrete state
-                            robot_discrete_state = self.env.get_robot_current_discrete_state()  # tuple (x,y,t,m)
-                            current_mode = robot_discrete_state[-1]
-                            belief_at_disamb_time = self.p_g_given_phm
-                            max_disamb_state = self.disamb_algo.get_local_disamb_state(
-                                self.p_g_given_phm, robot_discrete_state
-                            )
-                            print ("MAX DISAMB STATE", max_disamb_state)
-                            # convert discrete disamb state to continous attractor position for disamb pfield
-                            (
-                                max_disamb_continuous_position,
-                                max_disamb_continuous_orientation,
-                                _,
-                            ) = self._convert_discrete_state_to_continuous_pose(
-                                max_disamb_state, mdp_env_params["cell_size"], world_bounds
-                            )
-                            # update disamb pfield attractor
-                            self.update_attractor_ds_request.pfield_id = "disamb"
-                            self.update_attractor_ds_request.attractor_position = list(
-                                max_disamb_continuous_position
-                            )  # dummy attractor pos. Will be update after disamb computation
-                            self.update_attractor_ds_request.attractor_orientation = float(
-                                max_disamb_continuous_orientation
-                            )
-                            self.update_attractor_ds_srv(self.update_attractor_ds_request)
-                            # activate disamb flag so that autonomy can drive the robot to the disamb location
-                            self.is_autonomy_turn = True
+                                # get current discrete state
+                                robot_discrete_state = self.env.get_robot_current_discrete_state()  # tuple (x,y,t,m)
+                                current_mode = robot_discrete_state[-1]
+                                belief_at_disamb_time = self.p_g_given_phm
+                                max_disamb_state = self.disamb_algo.get_local_disamb_state(
+                                    self.p_g_given_phm, robot_discrete_state
+                                )
+                                print ("MAX DISAMB STATE", max_disamb_state)
+                                # convert discrete disamb state to continous attractor position for disamb pfield
+                                (
+                                    max_disamb_continuous_position,
+                                    max_disamb_continuous_orientation,
+                                    _,
+                                ) = self._convert_discrete_state_to_continuous_pose(
+                                    max_disamb_state, mdp_env_params["cell_size"], world_bounds
+                                )
+                                # update disamb pfield attractor
+                                self.update_attractor_ds_request.pfield_id = "disamb"
+                                self.update_attractor_ds_request.attractor_position = list(
+                                    max_disamb_continuous_position
+                                )  # dummy attractor pos. Will be update after disamb computation
+                                self.update_attractor_ds_request.attractor_orientation = float(
+                                    max_disamb_continuous_orientation
+                                )
+                                self.update_attractor_ds_srv(self.update_attractor_ds_request)
+                                # activate disamb flag so that autonomy can drive the robot to the disamb location
+                                self.is_autonomy_turn = True
 
-                            # switch current mode to disamb mode. #if disamb mdoe different from current update the message
-                            disamb_state_mode_index = max_disamb_state[-1]
-                            if disamb_state_mode_index != current_mode:
-                                self.env.set_information_text("Disamb - MODE SWITCHED")
-                            self.env.set_mode_in_robot(disamb_state_mode_index)
+                                # switch current mode to disamb mode. #if disamb mdoe different from current update the message
+                                disamb_state_mode_index = max_disamb_state[-1]
+                                if disamb_state_mode_index != current_mode:
+                                    self.env.set_information_text("Disamb - MODE SWITCHED")
+                                self.env.set_mode_in_robot(disamb_state_mode_index)
+                            else:
+                                # human has stopped. autonomy' turn. Upon waiting, the confidence is still high. Therefore, move the robot to current confident goal.
+                                print ("ACTIVATING AUTONOMY")
+                                self.env.set_information_text("AUTONOMY")
+
+                                # Freeze belief update during autonomy's turn up until human activates again
+                                self.freeze_update_request.data = True
+                                self.freeze_update_srv(self.freeze_update_request)
+                                belief_at_disamb_time = self.p_g_given_phm
+                                # if so, get current argmax goal pose
+                                inferred_goal_pose = self.env_params["goal_poses"][inferred_goal_id]
+                                inferred_goal_position = inferred_goal_pose[:-1]
+                                # connect the line joining current position and inferref goal position.
+                                target_point = self._get_target_along_line(robot_continuous_position, inferred_goal_position)
+                                max_disamb_continuous_position = target_point
+                                self.update_attractor_ds_request.pfield_id = "disamb"
+                                self.update_attractor_ds_request.attractor_position = list(target_point)
+                                self.update_attractor_ds_request.attractor_orientation = float(robot_continuous_orientation)
+                                self.update_attractor_ds_srv(self.update_attractor_ds_request)
+                                self.is_autonomy_turn = True
+
                     elif self.condition == "control":
                         # check if ctr is past the threshold
                         if self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD:
