@@ -87,6 +87,7 @@ class GoalInference(object):
         else:
             self.P_PHI_GIVEN_A = collections.OrderedDict()
             self.init_P_PHI_GIVEN_A()
+            # print(self.P_PHI_GIVEN_A)
 
         if os.path.exists(
             os.path.join(self.distribution_directory_path, str(self.subject_id) + "_p_phm_given_phi.pkl")
@@ -193,11 +194,12 @@ class GoalInference(object):
 
     def _compute_p_g_given_phm(self, phm, current_mode):
         # print("PHM", phm)
+        # print(current_mode, type(current_mode))
         if phm != "None":
             self.decay_counter = 0
             for g in self.P_G_GIVEN_PHM.keys():  # already initialized
                 likelihood = 0.0  # likelihood
-                for a in self.P_PHI_GIVEN_A.keys():
+                for a in self.P_PHI_GIVEN_A[current_mode].keys():
                     for phi in self.P_PHM_GIVEN_PHI.keys():
                         likelihood += (
                             self.P_PHM_GIVEN_PHI[phi][phm]
