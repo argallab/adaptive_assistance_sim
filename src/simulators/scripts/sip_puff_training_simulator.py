@@ -5,7 +5,7 @@ import rospy
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
 from envs.sip_puff_training_env import SipPuffTrainingEnv
-from corrective_mode_switch_utils import LOW_LEVEL_COMMANDS, EXPERIMENT_START_COUNTDOWN
+from adaptive_assistance_sim_utils import *
 from dynamic_reconfigure.server import Server
 from simulators.cfg import SipPuffTrainingParadigmConfig
 import sys
