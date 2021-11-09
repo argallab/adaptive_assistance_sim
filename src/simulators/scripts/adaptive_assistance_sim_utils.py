@@ -356,6 +356,7 @@ class RobotSE2(object):
         return [self.robot.position[0], self.robot.position[1]]
 
     def get_angle(self):
+        # angle is between 0 and 2pi
         wrapped_angle = self.robot.angle
         while wrapped_angle >= 2 * PI:
             wrapped_angle -= 2 * PI

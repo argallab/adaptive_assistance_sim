@@ -9,7 +9,6 @@ sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts")
 from adaptive_assistance_sim_utils import *
 import numpy as np
 import collections
-import itertools
 import rospy
 import threading
 from envs.srv import PASAllG, PASAllGRequest, PASAllGResponse
@@ -18,6 +17,7 @@ from envs.msg import PASSingleG
 from mdp.mdp_discrete_SE2_gridworld_with_modes import MDPDiscreteSE2GridWorldWithModes
 from scipy.spatial import KDTree
 import time
+import math
 
 
 class ContinuousWorldSE2Env(object):
@@ -83,7 +83,7 @@ class ContinuousWorldSE2Env(object):
 
         # discretize to current discrete MDP orientation
         angle_resolution = (2 * PI) / self.mdp_num_discrete_orientations
-        mdp_discrete_orientation = int(round(cont_orientation / angle_resolution))
+        mdp_discrete_orientation = int(math.floor(cont_orientation / angle_resolution))
         # in the mdp class "move_p" results in "positive" change in angle which is counterclockwise motion
         # however, in the environment, a move_p command results in clockwise motion.
         # either change the transition model in MDP or change mapping in env.

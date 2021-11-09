@@ -203,7 +203,7 @@ class Simulator(object):
 
                 # disamb algo specific params
                 self.env_params["spatial_window_half_length"] = 3  # number of cells
-                self.condition = "control"
+                self.condition = "disamb"
                 # kl_coeff, num_modes,
                 self.env_params["kl_coeff"] = 0.9
                 self.env_params["dist_coeff"] = 0.1
