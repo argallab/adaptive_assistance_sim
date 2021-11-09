@@ -16,7 +16,7 @@ import bisect
 import rospkg
 
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
-from adaptive_assistance_sim_utils import TRUE_ACTION_TO_COMMAND, LOW_LEVEL_COMMANDS
+from adaptive_assistance_sim_utils import *
 
 
 class DataParser(object):
@@ -169,14 +169,82 @@ class PhiGivenAAnalysis(object):
             v = v / ACTION_TO_ARRAY_NORMALIZER_DICT[k]
             ACTION_TO_ARRAY_DICT[k] = v
 
-        import IPython
-
-        IPython.embed(banner1="check distrib")
-
         self.create_p_phi_given_a(ACTION_TO_ARRAY_DICT)
 
     def create_p_phi_given_a(self, probabilities):
-        pass
+        TRUE_P_PHI_GIVEN_A = collections.OrderedDict()
+        modes = [1, 2, 3]
+        for m in modes:
+            TRUE_P_PHI_GIVEN_A[m] = collections.OrderedDict()
+            for a in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():
+                TRUE_P_PHI_GIVEN_A[m][a] = collections.OrderedDict()
+                for phi in INTERFACE_LEVEL_ACTIONS:
+                    if phi == TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[a]:
+                        TRUE_P_PHI_GIVEN_A[m][a][phi] = 1.0
+                    else:
+                        TRUE_P_PHI_GIVEN_A[m][a][phi] = 0.0
+        keys = ["Hard Puff", "Hard Sip", "Soft Puff", "Soft Sip"]
+        p_phi_given_a = collections.OrderedDict()
+        diff_norm_p_phi_given_a = collections.OrderedDict()
+        for mode in modes:
+            p_phi_given_a[mode] = collections.OrderedDict()
+            diff_norm_p_phi_given_a[mode] = collections.OrderedDict()
+            for action in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():
+                p_phi_given_a[mode][action] = collections.OrderedDict()
+
+                if mode == 0:
+                    if action == "move_p":
+                        prob = probabilities["right"]  # each pf these a 4D array
+                    if action == "move_n":
+                        prob = probabilities["left"]
+                    if action == "to_mode_r":
+                        prob = probabilities["mode_switch_right_1"]
+                    if action == "to_mode_l":
+                        prob = probabilities["mode_switch_left_1"]
+                if mode == 1:
+                    if action == "move_p":
+                        prob = probabilities["up"]
+                    if action == "move_n":
+                        prob = probabilities["down"]
+                    if action == "to_mode_r":
+                        prob = probabilities["mode_switch_right_2"]
+                    if action == "to_mode_l":
+                        prob = probabilities["mode_switch_left_2"]
+                if mode == 2:
+                    if action == "move_p":
+                        prob = probabilities["counterclockwise"]
+                    if action == "move_n":
+                        prob = probabilities["clockwise"]
+                    if action == "to_mode_r":
+                        prob = probabilities["mode_switch_right_3"]
+                    if action == "to_mode_l":
+                        prob = probabilities["mode_switch_left_3"]
+
+                noise_level = 0.0001
+                prob = prob + noise_level * np.ones((4,))
+                prob = prob / np.sum(prob)
+
+                for ind, key in enumerate(keys):
+                    p_phi_given_a[mode][action][key] = prob[ind]
+
+                diff_norm_p_phi_given_a[mode][action] = np.linalg.norm(
+                    np.array(TRUE_P_PHI_GIVEN_A[mode][action].values()) - prob
+                )
+
+                flatten = itertools.chain.from_iterable
+                list_of_all_diff_norms = [d.values() for d in diff_norm_p_phi_given_a.values()]
+                list_of_all_diff_norms = list(flatten(list_of_all_diff_norms))
+
+        print(max(list_of_all_diff_norms))
+        if max(list_of_all_diff_norms) > 0.22:
+            print("NEEEEDS MORE TRAINING", max(list_of_all_diff_norms))
+
+        personalized_distributions_dir = os.path.join(
+            rospkg.RosPack().get_path("inference_engine"), "personalized_distributions"
+        )
+        pickle.dump(
+            p_phi_given_a, open(os.path.join(personalized_distributions_dir, self.id + "_p_phi_given_a.pkl"), "wb")
+        )
 
 
 if __name__ == "__main__":
