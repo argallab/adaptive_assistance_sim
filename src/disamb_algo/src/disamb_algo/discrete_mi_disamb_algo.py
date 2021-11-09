@@ -122,13 +122,14 @@ class DiscreteMIDisambAlgo(object):
         for i, vs in enumerate(states_for_disamb_computation):
             # print("Computing MI for ", vs)
             traj_list = collections.defaultdict(list)
+            vs_mode = vs[-1]
             for t in range(self.num_sample_trajectories):
                 sampled_goal_index = np.random.choice(self.num_goals, p=prior)
                 mdp_for_sampled_goal = self.mdp_list[sampled_goal_index]
                 # sub optimal a_sampled
                 a_sampled = mdp_for_sampled_goal.get_optimal_action(vs, return_optimal=False)
                 # sampled corrupted interface level action corresponding to task-level action, could be None
-                phi = self.sample_phi_given_a(a_sampled)
+                phi = self.sample_phi_given_a(a_sampled, vs_mode)
                 # corrupted interface level action, could be None
                 phm = self.sample_phm_given_phi(phi)
                 if phm != "None":
@@ -206,12 +207,12 @@ class DiscreteMIDisambAlgo(object):
         print("LOCAL 2D WINDOW ", window_coordinates)
         for wc in window_coordinates:
             vs = current_grid_loc + np.array(wc)  # 2d grid loc
-            for mode in range(self.num_modes):  #
+            for mode in range(self.num_modes):  # 0,1,2
                 vs_mode = (
                     vs[0],
                     vs[1],
                     current_orientation,
-                    mode + 1,
+                    mode + 1,  # 1,2,3
                 )  # same orientation as the current state for all states under consideration
                 if vs_mode in all_state_coords:
                     states_in_local_spatial_window.append(vs_mode)
@@ -221,18 +222,18 @@ class DiscreteMIDisambAlgo(object):
         assert len(states_in_local_spatial_window) > 0, current_state
         return states_in_local_spatial_window
 
-    def sample_phi_given_a(self, a):  # sample from p(phii|a)
+    def sample_phi_given_a(self, a, current_mode):  # sample from p(phii|a)
         d = np.random.rand()
 
         if d < self.PHI_SPARSE_LEVEL:
             phi = "None"
         else:
-            p_vector = self.P_PHI_GIVEN_A[a].values()  # list of probabilities for phii
+            p_vector = self.P_PHI_GIVEN_A[current_mode][a].values()  # list of probabilities for phii
             # sample from the multinomial distribution with distribution p_vector
             phi_index_vector = np.random.multinomial(1, p_vector)
             # grab the index of the index_vector which had a nonzero entry
             phi_index = np.nonzero(phi_index_vector)[0][0]
-            phi = self.P_PHI_GIVEN_A[a].keys()[phi_index]  # retrieve phii using the phi_index
+            phi = self.P_PHI_GIVEN_A[current_mode][a].keys()[phi_index]  # retrieve phii using the phi_index
             # will be not None
 
         return phi
@@ -256,25 +257,47 @@ class DiscreteMIDisambAlgo(object):
 
     # TODO consolidate the following two functions so that both goal inference and
     # goal disamb both have the same set of information regarding interface noise
+    # def init_P_PHI_GIVEN_A(self):
+    #     # only to be done at the beginning of a session for a subject. No updating between trials
+    #     self.P_PHI_GIVEN_A = collections.OrderedDict()
+    #     for k in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():  # task level action
+    #         self.P_PHI_GIVEN_A[k] = collections.OrderedDict()
+    #         for u in INTERFACE_LEVEL_ACTIONS:
+    #             if u == TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[k]:
+    #                 # try to weight the true command more for realistic purposes. Can be offset by using a high PHI_GIVEN_A_NOISE
+    #                 self.P_PHI_GIVEN_A[k][u] = 1.0
+    #             else:
+    #                 self.P_PHI_GIVEN_A[k][u] = 0.0
+
+    #         delta_dist = np.array(list(self.P_PHI_GIVEN_A[k].values()))
+    #         uniform_dist = (1.0 / len(INTERFACE_LEVEL_ACTIONS)) * np.ones(len(INTERFACE_LEVEL_ACTIONS))
+    #         blended_dist = (
+    #             1 - self.DEFAULT_PHI_GIVEN_A_NOISE
+    #         ) * delta_dist + self.DEFAULT_PHI_GIVEN_A_NOISE * uniform_dist  # np.array
+    #         for index, u in enumerate(INTERFACE_LEVEL_ACTIONS):
+    #             self.P_PHI_GIVEN_A[k][u] = blended_dist[index]
+
     def init_P_PHI_GIVEN_A(self):
         # only to be done at the beginning of a session for a subject. No updating between trials
         self.P_PHI_GIVEN_A = collections.OrderedDict()
-        for k in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():  # task level action
-            self.P_PHI_GIVEN_A[k] = collections.OrderedDict()
-            for u in INTERFACE_LEVEL_ACTIONS:
-                if u == TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[k]:
-                    # try to weight the true command more for realistic purposes. Can be offset by using a high PHI_GIVEN_A_NOISE
-                    self.P_PHI_GIVEN_A[k][u] = 1.0
-                else:
-                    self.P_PHI_GIVEN_A[k][u] = 0.0
+        for mode in [1, 2, 3]:  # hard coded modes for SE2
+            self.P_PHI_GIVEN_A[mode] = collections.OrderedDict()
+            for k in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():  # task level action
+                self.P_PHI_GIVEN_A[mode][k] = collections.OrderedDict()
+                for u in INTERFACE_LEVEL_ACTIONS:
+                    if u == TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[k]:
+                        # try to weight the true command more for realistic purposes. Can be offset by using a high PHI_GIVEN_A_NOISE
+                        self.P_PHI_GIVEN_A[mode][k][u] = 1.0
+                    else:
+                        self.P_PHI_GIVEN_A[mode][k][u] = 0.0
 
-            delta_dist = np.array(list(self.P_PHI_GIVEN_A[k].values()))
-            uniform_dist = (1.0 / len(INTERFACE_LEVEL_ACTIONS)) * np.ones(len(INTERFACE_LEVEL_ACTIONS))
-            blended_dist = (
-                1 - self.DEFAULT_PHI_GIVEN_A_NOISE
-            ) * delta_dist + self.DEFAULT_PHI_GIVEN_A_NOISE * uniform_dist  # np.array
-            for index, u in enumerate(INTERFACE_LEVEL_ACTIONS):
-                self.P_PHI_GIVEN_A[k][u] = blended_dist[index]
+                delta_dist = np.array(list(self.P_PHI_GIVEN_A[mode][k].values()))
+                uniform_dist = (1.0 / len(INTERFACE_LEVEL_ACTIONS)) * np.ones(len(INTERFACE_LEVEL_ACTIONS))
+                blended_dist = (
+                    1 - self.DEFAULT_PHI_GIVEN_A_NOISE
+                ) * delta_dist + self.DEFAULT_PHI_GIVEN_A_NOISE * uniform_dist  # np.array
+                for index, u in enumerate(INTERFACE_LEVEL_ACTIONS):
+                    self.P_PHI_GIVEN_A[mode][k][u] = blended_dist[index]
 
     def init_P_PHM_GIVEN_PHI(self):
         """

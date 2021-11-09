@@ -54,7 +54,7 @@ class ContinuousWorldSE2Env(object):
     def get_prob_a_s_all_g(self, req):
         response = PASAllGResponse()
         current_discrete_mdp_state = rospy.get_param("current_discrete_mdp_state", [0, 0, 0, 1])
-        current_discrete_mdp_state = tuple(current_discrete_mdp_state)  # [x,y,t,m]
+        current_discrete_mdp_state = tuple(current_discrete_mdp_state)  # [x,y,t,m] with m in 1,2,3
         p_a_s_all_g = []
         optimal_action_s_g = []
         for g in range(self.num_goals):
@@ -70,6 +70,7 @@ class ContinuousWorldSE2Env(object):
         response.p_a_s_all_g = p_a_s_all_g
         response.optimal_action_s_g = optimal_action_s_g
         response.status = True
+        response.current_mode = current_discrete_mdp_state[-1]
         return response
 
     def _continuous_orientation_to_discrete_orientation(self):

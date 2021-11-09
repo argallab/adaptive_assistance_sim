@@ -108,6 +108,7 @@ class GoalInference(object):
         # since TASK_LEVEL_ACTIONS is OrderedDict this is list will always be in the same order
         if p_a_s_all_g_response.status:
             p_a_s_all_g = p_a_s_all_g_response.p_a_s_all_g
+            current_mode = p_a_s_all_g_response.current_mode  # [1,2,3]
 
             # update p_a_s_all_g dict
             for g in range(len(p_a_s_all_g)):  # number of goals
@@ -120,7 +121,7 @@ class GoalInference(object):
             assert len(self.OPTIMAL_ACTION_FOR_S_G) == self.NUM_GOALS
 
             # do Bayesian inference and update belief over goals.
-            self._compute_p_g_given_phm(phm)
+            self._compute_p_g_given_phm(phm, current_mode)
             # # get inferred goal and optimal task level and interface level action corresponding to max.
             # g_inferred, a_inferred, ph_inferred, p_g_given_um_vector = self._compute_g_a_ph_inferred()
 
@@ -190,7 +191,7 @@ class GoalInference(object):
     #     ph_inferred = TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[a_inferred]
     #     return g_inferred, a_inferred, ph_inferred, p_g_given_um_vector
 
-    def _compute_p_g_given_phm(self, phm):
+    def _compute_p_g_given_phm(self, phm, current_mode):
         # print("PHM", phm)
         if phm != "None":
             self.decay_counter = 0
@@ -199,7 +200,9 @@ class GoalInference(object):
                 for a in self.P_PHI_GIVEN_A.keys():
                     for phi in self.P_PHM_GIVEN_PHI.keys():
                         likelihood += (
-                            self.P_PHM_GIVEN_PHI[phi][phm] * self.P_PHI_GIVEN_A[a][phi] * self.P_A_S_ALL_G_DICT[g][a]
+                            self.P_PHM_GIVEN_PHI[phi][phm]
+                            * self.P_PHI_GIVEN_A[current_mode][a][phi]
+                            * self.P_A_S_ALL_G_DICT[g][a]
                         )
 
                 self.P_G_GIVEN_PHM[g] = self.P_G_GIVEN_PHM[g] * likelihood  # multiply with prior
@@ -285,22 +288,44 @@ class GoalInference(object):
     def init_P_PHI_GIVEN_A(self):
         # only to be done at the beginning of a session for a subject. No updating between trials
         self.P_PHI_GIVEN_A = collections.OrderedDict()
-        for k in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():  # task level action
-            self.P_PHI_GIVEN_A[k] = collections.OrderedDict()
-            for u in INTERFACE_LEVEL_ACTIONS:
-                if u == TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[k]:
-                    # try to weight the true command more for realistic purposes. Can be offset by using a high PHI_GIVEN_A_NOISE
-                    self.P_PHI_GIVEN_A[k][u] = 1.0
-                else:
-                    self.P_PHI_GIVEN_A[k][u] = 0.0
+        for mode in [1, 2, 3]:
+            self.P_PHI_GIVEN_A[mode] = collections.OrderedDict()
+            for k in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():  # task level action
+                self.P_PHI_GIVEN_A[mode][k] = collections.OrderedDict()
+                for u in INTERFACE_LEVEL_ACTIONS:
+                    if u == TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[k]:
+                        # try to weight the true command more for realistic purposes. Can be offset by using a high PHI_GIVEN_A_NOISE
+                        self.P_PHI_GIVEN_A[mode][k][u] = 1.0
+                    else:
+                        self.P_PHI_GIVEN_A[mode][k][u] = 0.0
 
-            delta_dist = np.array(list(self.P_PHI_GIVEN_A[k].values()))
-            uniform_dist = (1.0 / len(INTERFACE_LEVEL_ACTIONS)) * np.ones(len(INTERFACE_LEVEL_ACTIONS))
-            blended_dist = (
-                1 - self.DEFAULT_PHI_GIVEN_A_NOISE
-            ) * delta_dist + self.DEFAULT_PHI_GIVEN_A_NOISE * uniform_dist  # np.array
-            for index, u in enumerate(INTERFACE_LEVEL_ACTIONS):
-                self.P_PHI_GIVEN_A[k][u] = blended_dist[index]
+                delta_dist = np.array(list(self.P_PHI_GIVEN_A[mode][k].values()))
+                uniform_dist = (1.0 / len(INTERFACE_LEVEL_ACTIONS)) * np.ones(len(INTERFACE_LEVEL_ACTIONS))
+                blended_dist = (
+                    1 - self.DEFAULT_PHI_GIVEN_A_NOISE
+                ) * delta_dist + self.DEFAULT_PHI_GIVEN_A_NOISE * uniform_dist  # np.array
+                for index, u in enumerate(INTERFACE_LEVEL_ACTIONS):
+                    self.P_PHI_GIVEN_A[mode][k][u] = blended_dist[index]
+
+    # def init_P_PHI_GIVEN_A(self):
+    #     # only to be done at the beginning of a session for a subject. No updating between trials
+    #     self.P_PHI_GIVEN_A = collections.OrderedDict()
+    #     for k in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():  # task level action
+    #         self.P_PHI_GIVEN_A[k] = collections.OrderedDict()
+    #         for u in INTERFACE_LEVEL_ACTIONS:
+    #             if u == TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[k]:
+    #                 # try to weight the true command more for realistic purposes. Can be offset by using a high PHI_GIVEN_A_NOISE
+    #                 self.P_PHI_GIVEN_A[k][u] = 1.0
+    #             else:
+    #                 self.P_PHI_GIVEN_A[k][u] = 0.0
+
+    #         delta_dist = np.array(list(self.P_PHI_GIVEN_A[k].values()))
+    #         uniform_dist = (1.0 / len(INTERFACE_LEVEL_ACTIONS)) * np.ones(len(INTERFACE_LEVEL_ACTIONS))
+    #         blended_dist = (
+    #             1 - self.DEFAULT_PHI_GIVEN_A_NOISE
+    #         ) * delta_dist + self.DEFAULT_PHI_GIVEN_A_NOISE * uniform_dist  # np.array
+    #         for index, u in enumerate(INTERFACE_LEVEL_ACTIONS):
+    #             self.P_PHI_GIVEN_A[k][u] = blended_dist[index]
 
     def init_P_PHM_GIVEN_PHI(self):
         """

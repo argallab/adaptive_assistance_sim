@@ -2,3 +2,4 @@
 PASSingleG[] p_a_s_all_g
 string[] optimal_action_s_g
 bool status
+int32 current_mode
