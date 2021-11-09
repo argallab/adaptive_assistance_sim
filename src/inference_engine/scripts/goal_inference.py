@@ -57,7 +57,7 @@ class GoalInference(object):
         self.P_PHM_GIVEN_PHI = None
         self.DEFAULT_PHI_GIVEN_A_NOISE = 0.1
         self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.1
-        self.DELAYED_DECAY_THRESHOLD = 20
+        self.DELAYED_DECAY_THRESHOLD = 8
 
         self.ASSISTANCE_TYPE = rospy.get_param("assistance_type", 2)
 

@@ -667,12 +667,12 @@ class Simulator(object):
             num_goals=NUM_GOALS,
             obstacle_list=mdp_env_params["original_mdp_obstacles"],
         )  # make the list a tuple
-        goal_list = [(9, 6, 1), (8, 8, 1), (6, 9, 6), (1, 4, 1)]
+        # goal_list = [(9, 6, 1), (8, 8, 1), (6, 9, 6), (1, 4, 1)]
 
-        # for i, g in enumerate(goal_list):
-        #     g = list(g)
-        #     g.append(np.random.randint(mdp_env_params["num_discrete_orientations"]))
-        #     goal_list[i] = tuple(g)
+        for i, g in enumerate(goal_list):
+            g = list(g)
+            g.append(np.random.randint(mdp_env_params["num_discrete_orientations"]))
+            goal_list[i] = tuple(g)
 
         print (goal_list)
         mdp_env_params["all_goals"] = goal_list
@@ -843,7 +843,7 @@ class Simulator(object):
             else:
                 return self.alpha_max
 
-    def _dist_based_weight(self, inferred_goal_position, robot_continuous_position, D=10.0, scale_factor=5):
+    def _dist_based_weight(self, inferred_goal_position, robot_continuous_position, D=50.0, scale_factor=5):
 
         d = np.linalg.norm(inferred_goal_position - np.array(robot_continuous_position))
         weight_D = 0.6
