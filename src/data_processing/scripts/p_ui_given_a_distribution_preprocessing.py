@@ -16,7 +16,7 @@ import bisect
 import rospkg
 
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
-from corrective_mode_switch_utils import TRUE_ACTION_TO_COMMAND, LOW_LEVEL_COMMANDS
+from adaptive_assistance_sim_utils import TRUE_ACTION_TO_COMMAND, LOW_LEVEL_COMMANDS
 
 
 class DataParser(object):
@@ -51,16 +51,13 @@ class IntendedCommandGivenActionAnalysis(object):
         assumes that time_stamp_array is a sorted (ascending) list.
         returns: (time stamp closest to tq, index of the time stamp closest to tq in time_stamp_array)
         """
-        idx = bisect.bisect(
-            time_stamp_array, tq
-        )  # idx is the index in the time_stamp_array whose value is immediately greater than tq
-        if (
-            idx == 0
-        ):  # if requested timestamp is smaller than the first element of the list then return the first element of the list and the index is 0
+        # idx is the index in the time_stamp_array whose value is immediately greater than tq
+        idx = bisect.bisect(time_stamp_array, tq)
+        # if requested timestamp is smaller than the first element of the list then return the first element of the list and the index is 0
+        if idx == 0:
             return time_stamp_array[idx], idx
-        elif idx == len(
-            time_stamp_array
-        ):  # if tq is greater than the biggest timestamp in the list, then retirn the last timestamp and the index of len-1 or idx-1
+        elif idx == len(time_stamp_array):
+            # if tq is greater than the biggest timestamp in the list, then retirn the last timestamp and the index of len-1 or idx-1
             return time_stamp_array[idx - 1], idx - 1
         else:
             prev_t = time_stamp_array[idx - 1]

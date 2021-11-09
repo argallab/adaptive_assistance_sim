@@ -15,7 +15,7 @@ import collections
 import bisect
 import rospkg
 sys.path.append(os.path.join(rospkg.RosPack().get_path('simulators'), 'scripts'))
-from corrective_mode_switch_utils import TRUE_ACTION_TO_COMMAND
+from adaptive_assistance_sim_utils import TRUE_ACTION_TO_COMMAND
 
 class DataParser(object):
 	def __init__(self, file_dir):

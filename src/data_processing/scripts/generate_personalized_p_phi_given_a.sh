@@ -2,10 +2,10 @@
 # Code developed by Deepak Gopinath*, Mahdieh Nejati Javaremi* in February 2020. Copyright (c) 2020. Deepak Gopinath, Mahdieh Nejati Javaremi, Argallab. (*) Equal contribution
 
 # extract topics from bag files
-# generate p(Um|Ui)
-# generate p(Um|a)
-# generate p(Ui|a)
-# generate p(Ui|a) optimization
+# generate p(phm|phi)
+# generate p(phm|a)
+# generate p(phi|a)
+# generate p(phi|a) optimization
 # plot distributions
 
 
@@ -13,11 +13,11 @@
 # bagfile=$1
 # echo "Bagfile: $bagfile"
 subject_id=$1
-echo "Subejct id: $subject_id"
+echo "Subject id: $subject_id"
 
 search_dir="/root/.ros/"
 
-declare -A p_ui_given_a_bags_array
+declare -A p_phi_given_a_bags_array
 i=0
 for full_file in ${search_dir}*.bag;
 do
@@ -28,8 +28,8 @@ do
 	# echo "$file_name"
 	# echo "$name"
 	if [[ "$name" == "$subject_id" ]]; then
-		if [[ "$p_of" == 'ui' ]] && [[ "$given" == 'a' ]]; then # p(Ui|a)
-			p_ui_given_a_bags_array[$i]=$full_file
+		if [[ "$p_of" == 'phi' ]] && [[ "$given" == 'a' ]]; then # p(phi|a)
+			p_phi_given_a_bags_array[$i]=$full_file
 			i=i+1
 		fi
 		# echo $full_file
@@ -43,7 +43,7 @@ max_h=0
 max_m=0
 max_x=0
 i=0
-for file in "${p_ui_given_a_bags_array[@]}";
+for file in "${p_phi_given_a_bags_array[@]}";
 do
 	file_name=${file##*/}
 	datetime="$(cut -d'_' -f6 <<<$file_name)"
@@ -94,19 +94,19 @@ do
 	i=i+1
 done
 
-p_ui_given_a_bag=${p_ui_given_a_bags_array[$i]}
-if [[ "${#p_ui_given_a_bags_array[@]}" == 1 ]]; then # if lenght of array is one, return just that one file (otherwise gives empty)
-	p_ui_given_a_bag=$p_ui_given_a_bags_array
+p_phi_given_a_bag=${p_phi_given_a_bags_array[$i]}
+if [[ "${#p_phi_given_a_bags_array[@]}" == 1 ]]; then # if lenght of array is one, return just that one file (otherwise gives empty)
+	p_phi_given_a_bag=$p_phi_given_a_bags_array
 fi
 
-echo "$p_ui_given_a_bag"
+echo "$p_phi_given_a_bag"
 
 
-# P(Ui|a) (internal_model)
-echo "Extracting: $p_ui_given_a_bag"
-python extract_topics_from_bag.py $p_ui_given_a_bag "${subject_id}_p_ui_given_a"
+# P(phi|a) (internal_model)
+echo "Extracting: $p_phi_given_a_bag"
+python extract_topics_from_bag.py $p_phi_given_a_bag "${subject_id}_p_phi_given_a"
 
 # Build distributions:
-# P(Ui|a)
-echo "Generating p(ui|a)"
-python p_ui_given_a_distribution_preprocessing.py -id ${subject_id}
+# P(phi|a)
+echo "Generating p(phi|a)"
+python p_phi_given_a_distribution_preprocessing.py -id ${subject_id}

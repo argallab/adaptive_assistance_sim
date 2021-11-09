@@ -15,11 +15,11 @@
   <!-- bag file name parameters -->  
   <group if="$(arg save)">
     <include file="$(find simulators)/launch/record.launch">
-      <arg name="bag_prefix" value="$(arg subject_id)_p_um_given_ui"/>
+      <arg name="bag_prefix" value="$(arg subject_id)_p_phm_given_phi"/>
     </include>    
   </group>
 
-  <node pkg="simulators" output="screen" type="p_um_given_ui_simulator.py" name="p_um_given_ui_simulator" args="$(arg duration) $(arg iteration)"/>
+  <node pkg="simulators" output="screen" type="p_phm_given_phi_simulator.py" name="p_phm_given_phi_simulator" args="$(arg duration) $(arg iteration)"/>
 
   <!-- keyboard node for experiment supervisor -->
   <node pkg="general_purpose" output="screen" type="keyboard_input_to_topic" name="keyboard_input_to_topic"/>

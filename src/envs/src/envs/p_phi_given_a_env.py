@@ -22,7 +22,7 @@ import threading
 # TODO: (mahdeih) Too many if statments and booleans, can do a better job of the state machine, clean in up!!
 
 
-class PUiGivenAEnv(object):
+class PPhiGivenAEnv(object):
     def __init__(self, env_params):
 
         self.viewer = None
@@ -241,17 +241,15 @@ class PUiGivenAEnv(object):
 
                 if self.clear_for_next_prompt:
                     # TODO: make  not hardcoded
-                    if (
-                        time.time() - self.te >= 0.5
-                    ):  # delay for a little bit so user has some break in between trainsitions (not immediate)
+                    # delay for a little bit so user has some break in between trainsitions (not immediate)
+                    if time.time() - self.te >= 0.5:
                         self.prompt_ind += 1
                         self.ready_for_new_prompt = True
                         self.clear_for_next_prompt = False
                         self.img_prompt = ""
                         bool_publish = True
-                        if self.prompt_ind >= len(
-                            self.action_prompts
-                        ):  # if reached end of prompt list, if more batches left, go to training, else show end message
+                        # if reached end of prompt list, if more batches left, go to training, else show end message
+                        if self.prompt_ind >= len(self.action_prompts):
                             self.img_prompt = ""
                             self.start_prompt = False
                             if int(self.current_block) < int(self.blocks):
@@ -260,9 +258,8 @@ class PUiGivenAEnv(object):
                             else:
                                 self.msg_prompt = "End of Test"
 
-                elif (
-                    time.time() - self.ts
-                ) >= self.action_timing_bound:  # if no response from user and set time limit reached, clear for next prompt
+                elif (time.time() - self.ts) >= self.action_timing_bound:
+                    # if no response from user and set time limit reached, clear for next prompt
                     self.clear_for_next_prompt = True
                     self.ready_for_user = False
                     self.te = time.time()
@@ -311,9 +308,8 @@ class PUiGivenAEnv(object):
 
     def _get_user_input(self):
         # TODO: Clean this up, divide to separate functions for next prompt and (next+back)
-        if (
-            "next_prompt" in self.env_params.keys()
-        ):  # works only during start_prompt, if user responds with 1,2,3,4 key, will show next prompt
+        # works only during start_prompt, if user responds with 1,2,3,4 key, will show next prompt
+        if "next_prompt" in self.env_params.keys():
             if self.ready_for_user:
                 self.clear_for_next_prompt = self.env_params["next_prompt"]
                 self.env_params["next_prompt"] = False  # reset
@@ -323,10 +319,8 @@ class PUiGivenAEnv(object):
                 self.img_prompt = ""
                 self.display_timer = False
                 return True
-
-        if (
-            "next" in self.env_params.keys()
-        ):  # works only during training, if user presses -> button, will go to next image
+        # works only during training, if user presses -> button, will go to next image
+        if "next" in self.env_params.keys():
             if self.start_training:
                 self.next = self.env_params["next"]
                 if self.next:
@@ -355,4 +349,4 @@ class PUiGivenAEnv(object):
 
 
 if __name__ == "__main__":
-    PUiGivenAEnv()
+    PPhiGivenAEnv()

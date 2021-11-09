@@ -16,6 +16,6 @@
 	<arg name="iteration" default="1" doc="Number of times to display each action within a block"/>
 	<arg name="block" default="1" doc="Number of blocks"/>
 
-	<node pkg="simulators" output="screen" type="p_ui_given_a_simulator.py" name="p_ui_given_a_simulator" args="$(arg iteration) $(arg block)"/>
+	<node pkg="simulators" output="screen" type="p_phi_given_a_simulator.py" name="p_phi_given_a_simulator" args="$(arg iteration) $(arg block)"/>
 
 </launch>

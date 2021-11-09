@@ -6,14 +6,14 @@ import time
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
 from simulators.msg import Command
-from envs.p_um_given_ui_env import PUmGivenUIEnv
+from envs.p_phm_given_phi_env import PPhmGivenPhiEnv
 from adaptive_assistance_sim_utils import *
 import pyglet
 import sys
 from random import randrange
 import threading
 
-class PUmGivenUISim(object):
+class PPhmGivenPhiSim(object):
     def __init__(self, duration=1.0, iterations=1):
         # initialization
         rospy.init_node("p_um_given_ui_simulator")
@@ -31,7 +31,7 @@ class PUmGivenUISim(object):
         env_params = dict()
         env_params['text'] = ''
 
-        self.env = PUmGivenUIEnv(env_params)
+        self.env = PPhmGivenPhiEnv(env_params)
         self.env.reset()
 
         self.generate_command_list() # generate random order of commands
@@ -101,5 +101,5 @@ class PUmGivenUISim(object):
         pass
 
 if __name__ == '__main__':
-    PUmGivenUISim(sys.argv[1], sys.argv[2])
+    PPhmGivenPhiSim(sys.argv[1], sys.argv[2])
     rospy.spin()

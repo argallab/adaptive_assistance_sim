@@ -10,7 +10,7 @@ sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts")
 from adaptive_assistance_sim_utils import *
 
 
-class PUmGivenUIEnv(object):
+class PPhmGivenPhiEnv(object):
     def __init__(self, env_params):
         self.viewer = None
         self.env_params = env_params
