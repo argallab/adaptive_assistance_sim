@@ -81,7 +81,7 @@ class SipPuffTraining(object):
     def reconfigure_cb(self, config, level):
         self.train_prompted = config.prompted_training
         if self.train_prompted:
-            print 'starting'
+            print('starting')
             self.command_list = []
             self.generate_command_list()
         return config

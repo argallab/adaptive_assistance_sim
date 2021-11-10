@@ -50,8 +50,8 @@ class DiscreteMIDisambAlgo(object):
         self.P_PHM_GIVEN_PHI = None
         self.PHI_SPARSE_LEVEL = 0.0
         self.PHM_SPARSE_LEVEL = 0.0
-        self.DEFAULT_PHI_GIVEN_A_NOISE = 0.1
-        self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.1
+        self.DEFAULT_PHI_GIVEN_A_NOISE = 0.2
+        self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.2
 
         self.num_sample_trajectories = self.env_params.get("num_sample_trajectories", 250)
         self.mode_set_type = self.env_params["mode_set_type"]
@@ -257,25 +257,6 @@ class DiscreteMIDisambAlgo(object):
 
     # TODO consolidate the following two functions so that both goal inference and
     # goal disamb both have the same set of information regarding interface noise
-    # def init_P_PHI_GIVEN_A(self):
-    #     # only to be done at the beginning of a session for a subject. No updating between trials
-    #     self.P_PHI_GIVEN_A = collections.OrderedDict()
-    #     for k in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():  # task level action
-    #         self.P_PHI_GIVEN_A[k] = collections.OrderedDict()
-    #         for u in INTERFACE_LEVEL_ACTIONS:
-    #             if u == TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[k]:
-    #                 # try to weight the true command more for realistic purposes. Can be offset by using a high PHI_GIVEN_A_NOISE
-    #                 self.P_PHI_GIVEN_A[k][u] = 1.0
-    #             else:
-    #                 self.P_PHI_GIVEN_A[k][u] = 0.0
-
-    #         delta_dist = np.array(list(self.P_PHI_GIVEN_A[k].values()))
-    #         uniform_dist = (1.0 / len(INTERFACE_LEVEL_ACTIONS)) * np.ones(len(INTERFACE_LEVEL_ACTIONS))
-    #         blended_dist = (
-    #             1 - self.DEFAULT_PHI_GIVEN_A_NOISE
-    #         ) * delta_dist + self.DEFAULT_PHI_GIVEN_A_NOISE * uniform_dist  # np.array
-    #         for index, u in enumerate(INTERFACE_LEVEL_ACTIONS):
-    #             self.P_PHI_GIVEN_A[k][u] = blended_dist[index]
 
     def init_P_PHI_GIVEN_A(self):
         # only to be done at the beginning of a session for a subject. No updating between trials
