@@ -27,7 +27,6 @@ from adaptive_assistance_sim_utils import (
 
 class DiscreteMIDisambAlgo(object):
     def __init__(self, env_params, subject_id):
-
         self.env_params = env_params
         assert self.env_params is not None
 
@@ -65,9 +64,12 @@ class DiscreteMIDisambAlgo(object):
         self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
         print(self.kl_coeff, self.dist_coeff)
 
-        self.distribution_directory_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "se2_personalized_distributions"
+        inference_engine_dir = os.path.join(os.getcwd(), os.pardir, os.pardir, os.pardir, "inference_engine")
+        self.distribution_directory_path = os.path.abspath(
+            os.path.join(inference_engine_dir, "personalized_distributions")
         )
+
+        assert os.path.exists(self.distribution_directory_path)
         # unify the initialization of these distribution between different classes
         # init all distributions from file
         if os.path.exists(os.path.join(self.distribution_directory_path, str(self.subject_id) + "_p_phi_given_a.pkl")):

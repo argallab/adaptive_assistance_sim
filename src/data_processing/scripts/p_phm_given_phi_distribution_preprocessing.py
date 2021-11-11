@@ -19,7 +19,7 @@ import collections
 
 def read_csv_files(subject_id):
 
-	path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), 'raw_data', subject_id+'_p_um_given_ui')
+	path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), 'raw_data', subject_id+'_p_phm_given_phi')
 	user_input_file = path + '/_joy_sip_puff.csv'
 	command_prompt_file = path + '/_command_prompt.csv'
 	command_prompt_df = pd.read_csv(command_prompt_file, header = 0)
@@ -125,9 +125,9 @@ def _init_p_um_given_ui(commands, keys, subject_id):
 		for index, name in enumerate(keys):
 			p_um[i][name] = commands[i][index]
 	# embed(banner1="u_m")
-	personalized_distributions_dir = os.path.join(rospkg.RosPack().get_path('inference_and_correction'), 'personalized_distributions')
+	personalized_distributions_dir = os.path.join(rospkg.RosPack().get_path('inference_engine'), 'personalized_distributions')
 	print(p_um)
-	pickle.dump(p_um, open(os.path.join(personalized_distributions_dir, subject_id +'_p_um_given_ui.pkl'), "wb"))
+	pickle.dump(p_um, open(os.path.join(personalized_distributions_dir, subject_id +'_p_phm_given_phi.pkl'), "wb"))
 
 
 def build_probabilities(command_prompt, user_input, subject_id):

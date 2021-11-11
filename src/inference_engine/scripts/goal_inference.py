@@ -48,7 +48,7 @@ class GoalInference(object):
         self.subject_id = subject_id
         self.is_freeze_update = False
         self.distribution_directory_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "se2_personalized_distributions"
+            os.path.dirname(os.path.dirname(__file__)), "personalized_distributions"
         )
         self.belief_info_pub = rospy.Publisher("/belief_info", BeliefInfo, queue_size=1)
         self.belief_info_msg = BeliefInfo()
@@ -195,7 +195,7 @@ class GoalInference(object):
     def _compute_p_g_given_phm(self, phm, current_mode):
         # print("PHM", phm)
         # print(current_mode, type(current_mode))
-        if phm != "None":
+        if phm != "None" and phm != "Soft-Hard Puff Deadband" and phm != "Soft-Hard Sip Deadband":
             self.decay_counter = 0
             for g in self.P_G_GIVEN_PHM.keys():  # already initialized
                 likelihood = 0.0  # likelihood

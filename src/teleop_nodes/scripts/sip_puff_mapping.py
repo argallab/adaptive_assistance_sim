@@ -130,9 +130,9 @@ class SNPMapping(object):
             self.send_msg.buttons[3] = 1
         else:
             if airVelocity < 0:
-                self.send_msg.header.frame_id = "None"
+                self.send_msg.header.frame_id = "Soft-Hard Puff Deadband"
             else:
-                self.send_msg.header.frame_id = "None"
+                self.send_msg.header.frame_id = "Soft-Hard Sip Deadband"
             self.send_msg.buttons = np.zeros(4)
 
         self.before_send_msg.header.frame_id = self.send_msg.header.frame_id
@@ -146,7 +146,11 @@ class SNPMapping(object):
             response = self.goal_inference_service(request)
 
         self.send_msg.buttons = np.zeros(4)
-        if self.send_msg.header.frame_id != "None":
+        if (
+            self.send_msg.header.frame_id != "None"
+            and self.send_msg.header.frame_id != "Soft-Hard Puff Deadband"
+            and self.send_msg.header.frame_id != "Soft-Hard Sip Deadband"
+        ):
             self.send_msg.buttons[self.command_to_button_index_map[self.send_msg.header.frame_id]] = 1
 
         return 0

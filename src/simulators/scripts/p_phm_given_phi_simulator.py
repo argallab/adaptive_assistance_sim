@@ -87,6 +87,7 @@ class PPhmGivenPhiSim(object):
             if (self.input_time < self.command_time):
                 self.command_list.append(self.command_list[i])
             i += 1
+            print(i, len(self.command_list))
         self.call_render('ALL DONE! :D', self.duration)
         self.env.viewer.close()
 

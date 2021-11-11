@@ -5,8 +5,8 @@
   <arg name="save" default="false" doc="Set to true if you wanted save bag file of trial"/>
   <arg name="subject_id" default="test" doc="trial identifier string"/>
 
-  <arg name="duration" default="1.0" doc="Duration to show each command"/>
-  <arg name="iteration" default="1" doc="Number of times to display each command"/>
+  <arg name="duration" default="4" doc="Duration to show each command"/>
+  <arg name="iteration" default="5" doc="Number of times to display each command"/>
 
   <arg name="SNP" default="true" doc="Set to true if using sip/puff to control arm."/>
   <arg name="JOINT" default="true" doc="Set to true if joint velocity control"/>

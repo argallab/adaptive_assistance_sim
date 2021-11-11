@@ -17,7 +17,7 @@ echo "Subejct id: $subject_id"
 
 search_dir="/root/.ros/"
 
-declare -A p_ui_given_a_bags_array
+declare -A p_phi_given_a_bags_array
 i=0
 for full_file in ${search_dir}*.bag;
 do
@@ -28,15 +28,15 @@ do
 	# echo "$file_name"
 	# echo "$name"
 	if [[ "$name" == "$subject_id" ]]; then
-		if [[ "$p_of" == 'um' ]] && [[ "$given" == 'ui' ]]; then # p(Um|Ui)
-			p_um_given_ui_bag=$full_file
+		if [[ "$p_of" == 'phm' ]] && [[ "$given" == 'phi' ]]; then # p(Um|Ui)
+			p_phm_given_phi_bag=$full_file
 		fi
-		if [[ "$p_of" == 'um' ]] && [[ "$given" == 'a' ]]; then # p(Um|a)
-			p_um_given_a_bag=$full_file
+		if [[ "$p_of" == 'phm' ]] && [[ "$given" == 'a' ]]; then # p(Um|a)
+			p_phm_given_a_bag=$full_file
 		fi
-		if [[ "$p_of" == 'ui' ]] && [[ "$given" == 'a' ]]; then # p(Ui|a)
-			# p_ui_given_a_bag=$full_file
-			p_ui_given_a_bags_array[$i]=$full_file
+		if [[ "$p_of" == 'phi' ]] && [[ "$given" == 'a' ]]; then # p(Ui|a)
+			# p_phi_given_a_bag=$full_file
+			p_phi_given_a_bags_array[$i]=$full_file
 			i=i+1
 		fi
 		# echo $full_file
@@ -52,7 +52,7 @@ max_h=0
 max_m=0
 max_x=0
 i=0
-for file in "${p_ui_given_a_bags_array[@]}";
+for file in "${p_phi_given_a_bags_array[@]}";
 do
 	file_name=${file##*/}
 	datetime="$(cut -d'_' -f6 <<<$file_name)"
@@ -103,38 +103,38 @@ do
 	i=i+1
 done
 
-p_ui_given_a_bag=${p_ui_given_a_bags_array[$i]}
-if [[ "${#p_ui_given_a_bags_array[@]}" == 1 ]]; then # if lenght of array is one, return just that one file (otherwise gives empty)
-	p_ui_given_a_bag=$p_ui_given_a_bags_array
+p_phi_given_a_bag=${p_phi_given_a_bags_array[$i]}
+if [[ "${#p_phi_given_a_bags_array[@]}" == 1 ]]; then # if lenght of array is one, return just that one file (otherwise gives empty)
+	p_phi_given_a_bag=$p_phi_given_a_bags_array
 fi
 
 # p(Um|Ui): (interface_distorition)
-echo "Extracting: $p_um_given_ui_bag"
-python extract_topics_from_bag.py $p_um_given_ui_bag "${subject_id}_p_um_given_ui"
+echo "Extracting: $p_phm_given_phi_bag"
+python extract_topics_from_bag.py $p_phm_given_phi_bag "${subject_id}_p_phm_given_phi"
 
-# p(Um|a): (command_following)
-echo "Extracting: $p_um_given_a_bag"
-python extract_topics_from_bag.py $p_um_given_a_bag "${subject_id}_p_um_given_a"
+# # p(Um|a): (command_following)
+# echo "Extracting: $p_um_given_a_bag"
+# python extract_topics_from_bag.py $p_um_given_a_bag "${subject_id}_p_um_given_a"
 
 # P(Ui|a) (internal_model)
-echo "Extracting: $p_ui_given_a_bag"
-python extract_topics_from_bag.py $p_ui_given_a_bag "${subject_id}_p_ui_given_a"
+echo "Extracting: $p_phi_given_a_bag"
+python extract_topics_from_bag.py $p_phi_given_a_bag "${subject_id}_p_phi_given_a"
 
 
 # Build distributions:
 
 # P(Um|Ui)
-echo "Generating p(um|ui)"
-python p_um_given_ui_distribution_preprocessing.py -id ${subject_id}
+echo "Generating p(phm|phi)"
+python p_phm_given_phi_distribution_preprocessing.py -id ${subject_id}
 
-# P(Um|a)
-echo "Generating p(um|a)"
-python p_um_given_a_distribution_preprocessing.py -id ${subject_id}
+# # P(Um|a)
+# echo "Generating p(um|a)"
+# python p_pm_given_a_distribution_preprocessing.py -id ${subject_id}
 
 # P(Ui|a)
-echo "Generating p(ui|a)"
-python p_ui_given_a_distribution_preprocessing.py -id ${subject_id}
+echo "Generating p(phi|a)"
+python p_phi_given_a_distribution_preprocessing.py -id ${subject_id}
 
-# P(Um|a) optimization
-echo "Generating p(ui|a) implicity using optimization"
-python p_ui_given_a_distribution_preprocessing_implicit.py -id ${subject_id}
+# # P(Um|a) optimization
+# echo "Generating p(ui|a) implicity using optimization"
+# python p_ui_given_a_distribution_preprocessing_implicit.py -id ${subject_id}
