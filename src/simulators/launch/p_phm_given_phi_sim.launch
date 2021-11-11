@@ -10,7 +10,7 @@
 
   <arg name="SNP" default="true" doc="Set to true if using sip/puff to control arm."/>
   <arg name="JOINT" default="true" doc="Set to true if joint velocity control"/>
-  <arg name="training" default="true" doc="Set to true if joint velocity control"/>
+  <arg name="snp_training" default="true" doc="Set to true if snp is used for training"/>
 
   <!-- record bags -->
   <!-- bag file name parameters -->  
@@ -28,7 +28,7 @@
   <include file="$(find teleop_nodes)/launch/teleop_nodes.launch">
 		<arg name="SNP" value="$(arg SNP)"/>
 		<arg name="JOINT" value="$(arg JOINT)"/>
-		<arg name="training" value="$(arg training)"/>
+		<arg name="snp_training" value="$(arg snp_training)"/>
 		<arg name="robot_dim" value="3"/>
 		<arg name="finger_dim" value="0"/>
 	</include>

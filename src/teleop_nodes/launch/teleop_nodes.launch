@@ -5,7 +5,7 @@
 	<!-- INPUT METHOD -->
 	<arg name="SNP" default="false" />
 	<arg name="JOINT" default="false"/>
-	<arg name="training" default="0"/>
+	<arg name="snp_training" default="0"/>
 	<arg name="robot_dim" default="3"/>
 	<arg name="finger_dim" default="0"/>
 	<arg name="interface_velocity_dim" default="1"/>
@@ -22,7 +22,7 @@
 		<node pkg="joy" type="joy_node" name="joy_node_snp">
 			<param name="dev" value="/dev/input/js0"/>
 		</node>
-		<node pkg="teleop_nodes" type="sip_puff_mapping.py" name="sip_puff_mapping" output="screen" args="$(arg 0)"/>
+		<node pkg="teleop_nodes" type="sip_puff_mapping.py" name="sip_puff_mapping" output="screen" args="$(arg snp_training)"/>
 		<node pkg="teleop_nodes" type="sip_and_puff_hybrid_signal.py" name="sip_and_puff_hybrid_signal" output="screen" args="$(arg interface_velocity_dim)">
 			<param name="snp_paradigm" value="$(find teleop_nodes)/cfg/SipPuffModeSwitchParadigm.cfg"/>
 		</node>
