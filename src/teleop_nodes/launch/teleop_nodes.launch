@@ -23,9 +23,12 @@
 			<param name="dev" value="/dev/input/js0"/>
 		</node>
 		<node pkg="teleop_nodes" type="sip_puff_mapping.py" name="sip_puff_mapping" output="screen" args="$(arg snp_training)"/>
-		<node pkg="teleop_nodes" type="sip_and_puff_hybrid_signal.py" name="sip_and_puff_hybrid_signal" output="screen" args="$(arg interface_velocity_dim)">
-			<param name="snp_paradigm" value="$(find teleop_nodes)/cfg/SipPuffModeSwitchParadigm.cfg"/>
-		</node>
+		<group unless="$(arg snp_training)">
+			<node pkg="teleop_nodes" type="sip_and_puff_hybrid_signal.py" name="sip_and_puff_hybrid_signal" output="screen" args="$(arg interface_velocity_dim)">
+				<param name="snp_paradigm" value="$(find teleop_nodes)/cfg/SipPuffModeSwitchParadigm.cfg"/>
+			</node>
+		</group>
+		
 	</group>
 
 </launch>

@@ -6,7 +6,7 @@
 
 	<arg name="SNP" default="true" doc="Set to true if using sip/puff to control arm."/>
 	<arg name="JOINT" default="true" doc="Set to true if joint velocity control"/>
-	<arg name="snp_training" default="true" doc="Set to true if snp is used for training"/>
+	<arg name="snp_training" default="1" doc="Set to true if snp is used for training"/>
 
 	<node pkg="simulators" output="screen" type="sip_puff_training_simulator.py" name="sip_puff_training_simulator" args="$(arg iteration)"/>
 

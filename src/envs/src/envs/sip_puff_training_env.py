@@ -18,7 +18,7 @@ class SipPuffTrainingEnv(object):
         assert self.env_params is not None
         assert "command" in self.env_params
         self.env_params["command"] = ""
-        self.env_params["active_color"] = ACTIVE_MODE_COLOR
+        self.env_params["active_color"] = GREEN
         self.prompt = ""
         self.start_prompt = False
         self.correct_count_threshold = 50
@@ -81,7 +81,7 @@ class SipPuffTrainingEnv(object):
                 self.env_params["active_color"] = ACTIVE_MODE_COLOR_ERROR
             if self.current_command == self.prompt:
                 self.correct_count += 1
-                self.env_params["active_color"] = ACTIVE_MODE_COLOR
+                self.env_params["active_color"] = GREEN
                 if self.correct_count == self.correct_count_threshold:
                     self.prompt_commands.pop(0)
                     self.clear_for_next_prompt = True
