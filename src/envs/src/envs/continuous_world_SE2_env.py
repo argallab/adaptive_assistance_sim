@@ -304,7 +304,7 @@ class ContinuousWorldSE2Env(object):
         # draw robot direction indicator after the robot has been drawn.
         self._render_robot_direction_indicators()
 
-        self._render_timer_text()
+        # self._render_timer_text()
 
         return self.viewer.render(False)
 

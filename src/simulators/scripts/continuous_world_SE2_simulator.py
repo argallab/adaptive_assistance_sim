@@ -209,7 +209,7 @@ class Simulator(object):
                 self.env_params["dist_coeff"] = 0.1
 
             else:
-                # training trials
+                # load or generate training trials here
                 pass
 
         # alpha from confidence function parameters
@@ -403,7 +403,7 @@ class Simulator(object):
                     # checks to whether trigger the autonomy turn
                     if self.condition == "disamb":
                         # maybe add other conditions such as high entropy for belief as a way to trigger
-                        if (self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD):
+                        if self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD:
                             if normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD:
                                 print ("ACTIVATING DISAMB")
                                 self.env.set_information_text("DISAMB")
@@ -454,15 +454,19 @@ class Simulator(object):
                                 self.freeze_update_request.data = True
                                 self.freeze_update_srv(self.freeze_update_request)
                                 belief_at_disamb_time = self.p_g_given_phm
-                                # if so, get current argmax goal pose
+                                # if so, get current inferred goal pose
                                 inferred_goal_pose = self.env_params["goal_poses"][inferred_goal_id]
                                 inferred_goal_position = inferred_goal_pose[:-1]
                                 # connect the line joining current position and inferref goal position.
-                                target_point = self._get_target_along_line(robot_continuous_position, inferred_goal_position)
+                                target_point = self._get_target_along_line(
+                                    robot_continuous_position, inferred_goal_position
+                                )
                                 max_disamb_continuous_position = target_point
                                 self.update_attractor_ds_request.pfield_id = "disamb"
                                 self.update_attractor_ds_request.attractor_position = list(target_point)
-                                self.update_attractor_ds_request.attractor_orientation = float(robot_continuous_orientation)
+                                self.update_attractor_ds_request.attractor_orientation = float(
+                                    robot_continuous_orientation
+                                )
                                 self.update_attractor_ds_srv(self.update_attractor_ds_request)
                                 self.is_autonomy_turn = True
 
