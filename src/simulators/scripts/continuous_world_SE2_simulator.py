@@ -288,7 +288,7 @@ class Simulator(object):
                     self.trial_start_time = time.time()
                     first_trial = False
                 else:
-                    if (time.time() - self.trial_start_time) > self.max_time or is_done:
+                    if is_done:
                         if not self.training:
                             print ("Move to NEXT TRIAL")
                             self.trial_marker_pub.publish("end")
