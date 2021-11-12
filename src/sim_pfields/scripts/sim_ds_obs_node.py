@@ -57,14 +57,14 @@ class SimPFields(object):
 
         response = CuboidObsListResponse()
         response.status = True
-        print("ENVIRONMENT ", self.environment.list)
+        # print("ENVIRONMENT ", self.environment.list)
         return response
 
     def update_ds(self, req):
         print("In UPDATE DS service")
         attractor_position = req.attractor_position
         attractor_orientation = req.attractor_orientation
-        print("ATTRACTOR POSITION ", attractor_position)
+        # print("ATTRACTOR POSITION ", attractor_position)
 
         # set up the translational dynamical system
         self.initial_ds_system = None

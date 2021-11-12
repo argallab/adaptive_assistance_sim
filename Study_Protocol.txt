@@ -1,0 +1,48 @@
+Qualtrics Reading Manual
+
+Describe the environment, the interface. etc. Same as ICRA. Change pictures. 
+
+
+You and an invisible person inside the compute can control the robot. This person is trying to help you achieve your goal. There Dee is always going to try to figure out 
+which of these goals you are trying to go to. When Dee becomes confident in its prediction of where you are going, it will try to help my assisting in the moving the robot
+towards the goal which it thinks you are going to. 
+
+
+
+In the testing phase, you and Dee will take turns operating the robot. 
+
+during your turn, Dee will still trying to assist by blending its control with yours. 
+during Dee's turn, Dee will move the robot to different locations in the world (and also potentially change the mode for you) and then hand the turn back to you to continue 
+with your task. You job is to just continue as normal from the state that Dee leaves you with. 
+
+
+phi_given_a training
+
+
+phm_given_phi training
+
+Pure teleop (reach a goal) - 3 times - During teleop your goal is to navigate the 
+Blending (reach a goal) - 2 times
+
+Blending + Turn Taking - 2 times
+
+
+Two conditions: Disamb and Control
+48 -  Total
+
+24 - scenes
+
+Each scene as disamb and control. 
+
+24 disamb
+24 control.
+
+3 blocks each of 8 trials. Approximately 6-8 minutes? Each. 
+Total of 6 blocks. 45-55 minutes 
+
+
+Out of 24 scenes. Create "hard scenes" where it is hard to intent inference. 
+
+Hardness comes from:
+
+Distance, all goals on one side. 

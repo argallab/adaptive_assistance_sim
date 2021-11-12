@@ -70,7 +70,7 @@ class SimPFieldsMultiple(object):
 
         response = CuboidObsListResponse()
         response.status = True
-        print("ENVIRONMENT ", self.environment_dict[pfield_id].list)
+        # print("ENVIRONMENT ", self.environment_dict[pfield_id].list)
         return response
 
     def update_ds(self, req):
@@ -78,8 +78,8 @@ class SimPFieldsMultiple(object):
         pfield_id = req.pfield_id
         attractor_position = req.attractor_position
         attractor_orientation = req.attractor_orientation
-        print("ATTRACTOR POSITION for ", pfield_id, attractor_position)
-        print("ATTRACTOR ORIENTATION for ", pfield_id, attractor_orientation)
+        # print("ATTRACTOR POSITION for ", pfield_id, attractor_position)
+        # print("ATTRACTOR ORIENTATION for ", pfield_id, attractor_orientation)
         self.initial_ds_system_dict[pfield_id] = LinearSystem(attractor_position=np.array(attractor_position))
         self.attractor_orientation_dict[pfield_id] = attractor_orientation
         response = AttractorPosResponse()

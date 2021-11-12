@@ -38,7 +38,7 @@ from adaptive_assistance_sim_utils import *
 GRID_WIDTH = 10
 GRID_HEIGHT = 10
 NUM_ORIENTATIONS = 8
-NUM_GOALS = 4
+NUM_GOALS = 3
 OCCUPANCY_LEVEL = 0.0
 
 SPARSITY_FACTOR = 0.0
@@ -503,12 +503,12 @@ class Simulator(object):
                     # print(np.linalg.norm(np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)))
                     # print(np.linalg.norm(autonomy_vel))
                     if self.condition == "disamb":
-                        print (
-                            "dist to disamb ",
-                            np.linalg.norm(
-                                np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)
-                            ),
-                        )
+                        # print (
+                        #     "dist to disamb ",
+                        #     np.linalg.norm(
+                        #         np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)
+                        #     ),
+                        # )
                         if (
                             np.linalg.norm(
                                 np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)
@@ -539,10 +539,10 @@ class Simulator(object):
                                 is_done,
                             ) = self.env.step(self.input_action)
                     elif self.condition == "control":
-                        print (
-                            " dist to target",
-                            np.linalg.norm(np.array(robot_continuous_position) - np.array(target_point)),
-                        )
+                        # print (
+                        #     " dist to target",
+                        #     np.linalg.norm(np.array(robot_continuous_position) - np.array(target_point)),
+                        # )
                         if np.linalg.norm(np.array(robot_continuous_position) - np.array(target_point)) < 2.0:
                             print ("DONE WITH AUTONOMY PHASE")
                             # reset belief to what it was when the disamb mode was activated.
