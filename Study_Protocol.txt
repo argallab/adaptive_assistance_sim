@@ -37,7 +37,7 @@ Each scene as disamb and control.
 24 disamb
 24 control.
 
-3 blocks each of 8 trials. Approximately 6-8 minutes? Each. 
+3 blocks fro each condition of 8 trials. Approximately 6-8 minutes? Each. 
 Total of 6 blocks. 45-55 minutes 
 
 
