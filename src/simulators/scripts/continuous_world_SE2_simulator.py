@@ -46,7 +46,7 @@ RAND_DIRECTION_FACTOR = 0.1
 
 
 class Simulator(object):
-    def __init__(self, subject_id, assistance_block, block_id, training):
+    def __init__(self, subject_id, condition_block, block_id, training):
         super(Simulator, self).__init__()
         rospy.init_node("Simulator")
         rospy.on_shutdown(self.shutdown_hook)
@@ -73,7 +73,7 @@ class Simulator(object):
         self.metadata_dir = os.path.join(os.path.dirname(__file__), "metadata_dir")
 
         self.subject_id = subject_id
-        self.assistance_block = assistance_block  # pass these things from launch file
+        self.condition_block = condition_block  # pass these things from launch file
         self.block_id = block_id
         self.training = training
         self.total_blocks = 6
@@ -81,8 +81,8 @@ class Simulator(object):
         self.testing_block_filename = (
             self.subject_id
             + "_"
-            + self.assistance_block
-            + "_assistance_"
+            + self.condition_block
+            + "_condition_"
             + self.block_id
             + "_num_blocks_"
             + str(self.total_blocks)
@@ -950,10 +950,10 @@ class Simulator(object):
 
 if __name__ == "__main__":
     subject_id = sys.argv[1]
-    assistance_block = sys.argv[2]
+    condition_block = sys.argv[2]
     block_id = sys.argv[3]
     training = int(sys.argv[4])
 
     print type(subject_id), type(block_id), type(training)
-    Simulator(subject_id, assistance_block, block_id, training)
+    Simulator(subject_id, condition_block, block_id, training)
     rospy.spin()
