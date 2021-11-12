@@ -148,8 +148,8 @@ class Simulator(object):
                 self.env_params["is_visualize_grid"] = True
 
                 print ("GOALS", mdp_env_params["all_goals"])
-                # discrete_robot_state = mdp_list[0].get_random_valid_state()
-                discrete_robot_state = (0, 0, 0, 1)  # bottom left
+                discrete_robot_state = mdp_list[0].get_random_valid_state(is_not_goal=True)
+                # discrete_robot_state = (0, 0, 0, 1)  # bottom left
                 robot_position, robot_orientation, start_mode = self._convert_discrete_state_to_continuous_pose(
                     discrete_robot_state, mdp_env_params["cell_size"], world_bounds
                 )
@@ -221,7 +221,7 @@ class Simulator(object):
         else:
             self.confidence_slope = -1.0
 
-        self.ENTROPY_THRESHOLD = 0.8
+        self.ENTROPY_THRESHOLD = 0.7    
 
         # instantiate the environement
         self.env_params["start"] = False
@@ -337,7 +337,7 @@ class Simulator(object):
                             self.env_params["goal_poses"][inferred_goal_id][:-1], robot_continuous_position
                         )
                         self.alpha = self._compute_alpha(inferred_goal_prob) * dist_weight
-                        print ("ALPHA ", self.alpha, dist_weight)
+                        # print ("ALPHA ", self.alpha, dist_weight)
                         # if np.linalg.norm(np.array(robot_continuous_position) - np.array(inferred_goal_position)) < self.BLENDING_THRESHOLD:
                         #     #within blending threshold, therefore blend
                         #     self.alpha = self._compute_alpha(inferred_goal_prob)
@@ -382,17 +382,7 @@ class Simulator(object):
                         is_done,
                     ) = self.env.step(self.input_action)
 
-                    # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
-                    if tuple(robot_discrete_state[:-1]) in self.env_params["all_mdp_env_params"]["all_goals"]:
-                        index_goal = self.env_params["all_mdp_env_params"]["all_goals"].index(
-                            tuple(robot_discrete_state[:-1])
-                        )
-                        goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
-                        if (
-                            np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position))
-                            < 1.0
-                        ):  # determine threshold
-                            is_done = True
+                    
 
                     if self.terminate:
                         self.shutdown_hook("Session terminated")
@@ -465,7 +455,7 @@ class Simulator(object):
                                 self.update_attractor_ds_request.pfield_id = "disamb"
                                 self.update_attractor_ds_request.attractor_position = list(target_point)
                                 self.update_attractor_ds_request.attractor_orientation = float(
-                                    robot_continuous_orientation
+                                    inferred_goal_pose[-1]
                                 )
                                 self.update_attractor_ds_srv(self.update_attractor_ds_request)
                                 self.is_autonomy_turn = True
@@ -580,6 +570,17 @@ class Simulator(object):
 
                     self.env.render()
 
+                # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
+                if tuple(robot_discrete_state[:-1]) in self.env_params["all_mdp_env_params"]["all_goals"]:
+                    index_goal = self.env_params["all_mdp_env_params"]["all_goals"].index(
+                        tuple(robot_discrete_state[:-1])
+                    )
+                    goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
+                    if (
+                        np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position))
+                        < 1.0
+                    ):  # determine threshold
+                        is_done = True
             r.sleep()
 
     def _generate_continuous_goal_poses(self, discrete_goal_list, cell_size, world_bounds):
@@ -802,6 +803,9 @@ class Simulator(object):
     def _get_target_along_line(self, start_point, end_point, R=10.0):
 
         D = np.linalg.norm(np.array(end_point) - np.array(start_point))
+        # if D < 10.0: #if autonomy is within 20 pixel go for the goal
+        #     R = D
+        # else:
         R = min(R, D / 2)
         target_x = start_point[0] + (R / D) * (end_point[0] - start_point[0])
         target_y = start_point[1] + (R / D) * (end_point[1] - start_point[1])
@@ -847,7 +851,7 @@ class Simulator(object):
             else:
                 return self.alpha_max
 
-    def _dist_based_weight(self, inferred_goal_position, robot_continuous_position, D=50.0, scale_factor=5):
+    def _dist_based_weight(self, inferred_goal_position, robot_continuous_position, D=35.0, scale_factor=5):
 
         d = np.linalg.norm(inferred_goal_position - np.array(robot_continuous_position))
         weight_D = 0.6

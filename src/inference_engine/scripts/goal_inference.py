@@ -57,25 +57,14 @@ class GoalInference(object):
         self.P_PHM_GIVEN_PHI = None
         self.DEFAULT_PHI_GIVEN_A_NOISE = 0.2
         self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.2
-        self.DELAYED_DECAY_THRESHOLD = 8
-
-        self.ASSISTANCE_TYPE = rospy.get_param("assistance_type", 2)
+        self.DELAYED_DECAY_THRESHOLD = 10
 
         self.P_A_S_ALL_G_DICT = collections.OrderedDict()
         self.OPTIMAL_ACTION_FOR_S_G = []
         self.delayed_decay_counter = 0
         self.decay_counter = 0
         self.decay_counter_max_value = 1000
-        self.decay_scale_factor = 0.005  # lower this value to slow down the decay
-
-        if self.ASSISTANCE_TYPE == 0:
-            self.ASSISTANCE_TYPE = AssistanceType.Filter
-        elif self.ASSISTANCE_TYPE == 1:
-            self.ASSISTANCE_TYPE = AssistanceType.Corrective
-        elif self.ASSISTANCE_TYPE == 2:
-            self.ASSISTANCE_TYPE = AssistanceType.No_Assistance
-
-        self.ENTROPY_THRESHOLD = rospy.get_param("entropy_threshold", 0.5)
+        self.decay_scale_factor = 0.002  # lower this value to slow down the decay
 
         # init all distributions from file
         if os.path.exists(os.path.join(self.distribution_directory_path, str(self.subject_id) + "_p_phi_given_a.pkl")):
@@ -144,53 +133,6 @@ class GoalInference(object):
             response.status = True
 
         return response
-
-    # def update_assistance_type(self):
-    #     self.ASSISTANCE_TYPE = rospy.get_param("assistance_type")
-    #     if self.ASSISTANCE_TYPE == 0:
-    #         self.ASSISTANCE_TYPE = AssistanceType.Filter
-    #     elif self.ASSISTANCE_TYPE == 1:
-    #         self.ASSISTANCE_TYPE = AssistanceType.Corrective
-    #     elif self.ASSISTANCE_TYPE == 2:
-    #         self.ASSISTANCE_TYPE = AssistanceType.No_Assistance
-
-    # def _modify_or_pass_phm(self, phm, ph_inferred, normalized_h_of_p_g_given_phm):
-    #     self.update_assistance_type()
-    #     print("Normalized Entropy ", normalized_h_of_p_g_given_phm)
-    #     if ph_inferred != phm:
-    #         if normalized_h_of_p_g_given_phm <= self.ENTROPY_THRESHOLD:
-    #             if self.ASSISTANCE_TYPE == AssistanceType.Filter:
-    #                 # need to be interprted properly in the teleop node. None --> Zero Band for SNP
-    #                 ph_modified = "None"
-    #             elif self.ASSISTANCE_TYPE == AssistanceType.Corrective:
-    #                 ph_modified = ph_inferred
-    #             elif self.ASSISTANCE_TYPE == AssistanceType.No_Assistance:
-    #                 return phm, False, False
-    #         else:
-    #             return phm, False, False
-    #     else:
-    #         return phm, False, True
-
-    #     return ph_modified, True, False  # only triggered when Filter or Corrective mode
-
-    # def _compute_entropy_of_p_g_given_phm(self):
-    #     p_g_given_phm_vector = np.array(self.P_G_GIVEN_PHM.values())
-    #     p_g_given_phm_vector = p_g_given_phm_vector + np.finfo(p_g_given_phm_vector.dtype).tiny
-    #     uniform_distribution = np.array([1.0 / p_g_given_phm_vector.size] * p_g_given_phm_vector.size)
-    #     max_entropy = -np.dot(uniform_distribution, np.log2(uniform_distribution))
-    #     normalized_h_of_p_g_given_phm = -np.dot(p_g_given_phm_vector, np.log2(p_g_given_phm_vector)) / max_entropy
-    #     return normalized_h_of_p_g_given_phm
-
-    # def _compute_g_a_ph_inferred(self):
-    #     p_g_given_um_vector = np.array(self.P_G_GIVEN_PHM.values())
-    #     # need to add realmin to avoid nan issues with entropy calculation is p_ui_given_um_vector is delta distribution'
-    #     p_g_given_um_vector = p_g_given_um_vector + np.finfo(p_g_given_um_vector.dtype).tiny
-    #     g_inferred = self.P_G_GIVEN_PHM.keys()[np.argmax(p_g_given_um_vector)]  # argmax computation for g_inferred
-    #     # retreive optimal task level action corresponding to inferred goal optimal action will always be not None
-    #     a_inferred = self.OPTIMAL_ACTION_FOR_S_G[g_inferred]  # string (always not None)
-    #     # interface level action corresponding to a inferred
-    #     ph_inferred = TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[a_inferred]
-    #     return g_inferred, a_inferred, ph_inferred, p_g_given_um_vector
 
     def _compute_p_g_given_phm(self, phm, current_mode):
         # print("PHM", phm)

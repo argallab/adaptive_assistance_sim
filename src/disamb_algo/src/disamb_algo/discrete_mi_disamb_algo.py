@@ -64,10 +64,12 @@ class DiscreteMIDisambAlgo(object):
         self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
         print(self.kl_coeff, self.dist_coeff)
 
-        inference_engine_dir = os.path.join(os.getcwd(), os.pardir, os.pardir, os.pardir, "inference_engine")
-        self.distribution_directory_path = os.path.abspath(
-            os.path.join(inference_engine_dir, "personalized_distributions")
+        inference_engine_dir = os.path.abspath(
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), os.pardir, os.pardir, "inference_engine")
         )
+        self.distribution_directory_path = os.path.join(inference_engine_dir, "personalized_distributions")
+
+        print(self.distribution_directory_path)
 
         assert os.path.exists(self.distribution_directory_path)
         # unify the initialization of these distribution between different classes
