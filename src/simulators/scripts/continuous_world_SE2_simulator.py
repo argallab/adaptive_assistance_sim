@@ -69,8 +69,8 @@ class Simulator(object):
         self.trial_index = 0
 
         self.env_params = None
-        self.trial_info_dir_path = os.path.join(os.path.dirname(__file__), "se2_trial_dir")
-        self.metadata_dir = os.path.join(os.path.dirname(__file__), "se2_metadata_dir")
+        self.trial_info_dir_path = os.path.join(os.path.dirname(__file__), "trial_dir")
+        self.metadata_dir = os.path.join(os.path.dirname(__file__), "metadata_dir")
 
         self.subject_id = subject_id
         self.assistance_block = assistance_block  # pass these things from launch file
@@ -109,6 +109,7 @@ class Simulator(object):
         self.restart = False
         if self.trial_info_dir_path is not None and os.path.exists(self.trial_info_dir_path) and not self.training:
             # if trials are pregenerated then load from there.
+            print ("PRECACHED TRIALS")
             pass
         else:
             if not self.training:
