@@ -69,8 +69,8 @@ class Simulator(object):
         self.trial_index = 0
 
         self.env_params = None
-        self.trial_info_dir_path = os.path.join(os.path.dirname(__file__),"trial_folders", "trial_dir")
-        self.metadata_dir = os.path.join(os.path.dirname(__file__),"trial_folders", "metadata_dir")
+        self.trial_info_dir_path = os.path.join(os.path.dirname(__file__),"trial_folders", "training_trial_dir")
+        self.metadata_dir = os.path.join(os.path.dirname(__file__),"trial_folders", "training_metadata_dir")
 
         self.subject_id = subject_id
         self.condition_block = condition_block  # pass these things from launch file
@@ -125,6 +125,7 @@ class Simulator(object):
             print ("ALGO CONDITION", self.env_params["algo_condition"])
 
         # init pfields
+        self.blend_mode = self.env_params['blend_mode']
         self._init_goal_pfields(
             self.env_params["goal_poses"],
             mdp_env_params["dynamic_obs_specs"],
