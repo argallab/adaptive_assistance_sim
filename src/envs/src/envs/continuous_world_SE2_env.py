@@ -381,6 +381,17 @@ class ContinuousWorldSE2Env(object):
         # create kd tree with the cell_center_list. Use euclidean distance in 2d space for nearest neight
         self.continuous_kd_tree = KDTree(data)
 
+    def update_params(self, env_params):
+        self.env_params = env_params
+        assert self.env_params is not None
+        assert "num_goals" in self.env_params
+        assert "robot_position" in self.env_params
+        assert "robot_orientation" in self.env_params
+
+        assert "goal_poses" in self.env_params
+        assert "start_mode" in self.env_params
+        assert "world_bounds" in self.env_params
+
     def reset(self):
         self._destroy()
         # red, green, blue, tello, cyan
@@ -467,12 +478,7 @@ class ContinuousWorldSE2Env(object):
 
         y_lb = self.world_bounds["yrange"]["lb"] + ROBOT_RADIUS / SCALE
         y_ub = self.world_bounds["yrange"]["ub"] - ROBOT_RADIUS / SCALE
-        if (
-            robot_position[0] < x_lb
-            or robot_position[0] > x_ub
-            or robot_position[1] < y_lb
-            or robot_position[1] > y_ub
-        ):
+        if robot_position[0] < x_lb or robot_position[0] > x_ub or robot_position[1] < y_lb or robot_position[1] > y_ub:
             return False
         else:
             return True

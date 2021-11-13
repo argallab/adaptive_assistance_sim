@@ -69,8 +69,8 @@ class Simulator(object):
         self.trial_index = 0
 
         self.env_params = None
-        self.trial_info_dir_path = os.path.join(os.path.dirname(__file__), "trial_dir")
-        self.metadata_dir = os.path.join(os.path.dirname(__file__), "metadata_dir")
+        self.trial_info_dir_path = os.path.join(os.path.dirname(__file__), "trial_folders", "trial_dir")
+        self.metadata_dir = os.path.join(os.path.dirname(__file__),"trial_folders", "metadata_dir")
 
         self.subject_id = subject_id
         self.condition_block = condition_block  # pass these things from launch file
@@ -110,7 +110,18 @@ class Simulator(object):
         if self.trial_info_dir_path is not None and os.path.exists(self.trial_info_dir_path) and not self.training:
             # if trials are pregenerated then load from there.
             print ("PRECACHED TRIALS")
-            pass
+            self.metadata_index_path = os.path.join(self.metadata_dir, self.testing_block_filename)
+            assert os.path.exists(self.metadata_index_path)
+            with open(self.metadata_index_path, "rb") as fp:
+                self.metadata_index = pickle.load(fp)
+
+            trial_info_filename_index = self.metadata_index_path[self.trial_index]
+            trial_info_filepath = os.path.join(self.trial_info_dir_path)
+            assert os.path.exists(trial_info_filepath) is not None
+            with open(trial_info_filepath, "rb") as fp:
+                self.env_params = pickle.load(fp)
+
+            print ("ALGO CONDITION", self.env_params["algo_condition"])
         else:
             if not self.training:
                 mdp_env_params = self._create_mdp_env_param_dict()
@@ -178,27 +189,6 @@ class Simulator(object):
                     mdp_env_params["all_goals"], mdp_env_params["cell_size"], self.env_params["world_bounds"]
                 )
 
-                self._init_goal_pfields(
-                    self.env_params["goal_poses"],
-                    mdp_env_params["dynamic_obs_specs"],
-                    mdp_env_params["cell_size"],
-                    world_bounds,
-                )
-                self._init_other_pfields(
-                    self.env_params["goal_poses"],
-                    mdp_env_params["dynamic_obs_specs"],
-                    mdp_env_params["cell_size"],
-                    world_bounds,
-                    pfield_id="disamb",
-                )
-                self._init_other_pfields(
-                    self.env_params["goal_poses"],
-                    mdp_env_params["dynamic_obs_specs"],
-                    mdp_env_params["cell_size"],
-                    world_bounds,
-                    pfield_id="generic",
-                )
-
                 print ("cell size ", mdp_env_params["cell_size"])
                 self.env_params["assistance_type"] = 1
 
@@ -213,6 +203,27 @@ class Simulator(object):
                 # load or generate training trials here
                 pass
 
+        #init pfields
+        self._init_goal_pfields(
+            self.env_params["goal_poses"],
+            mdp_env_params["dynamic_obs_specs"],
+            mdp_env_params["cell_size"],
+            world_bounds,
+        )
+        self._init_other_pfields(
+            self.env_params["goal_poses"],
+            mdp_env_params["dynamic_obs_specs"],
+            mdp_env_params["cell_size"],
+            world_bounds,
+            pfield_id="disamb",
+        )
+        self._init_other_pfields(
+            self.env_params["goal_poses"],
+            mdp_env_params["dynamic_obs_specs"],
+            mdp_env_params["cell_size"],
+            world_bounds,
+            pfield_id="generic",
+        )
         # alpha from confidence function parameters
         self.confidence_threshold = 0.4
         self.confidence_max = 0.8
@@ -222,7 +233,7 @@ class Simulator(object):
         else:
             self.confidence_slope = -1.0
 
-        self.ENTROPY_THRESHOLD = 0.7    
+        self.ENTROPY_THRESHOLD = 0.7
 
         # instantiate the environement
         self.env_params["start"] = False
@@ -281,12 +292,12 @@ class Simulator(object):
                 if first_trial:
                     time.sleep(2)
 
-                    self.trial_marker_pub.publish("start")
-                    # self.trial_index_pub.publish(trial_info_filename_index)
                     self.env.reset()
                     self.env.render()
                     self.env.set_information_text("Waiting....")
                     self.trial_start_time = time.time()
+                    self.trial_marker_pub.publish("start")
+                    self.trial_index_pub.publish(trial_info_filename_index)
                     first_trial = False
                 else:
                     if is_done:
@@ -296,9 +307,26 @@ class Simulator(object):
                             self.env.render_clear("Loading next trial ...")
                             time.sleep(5.0)  # sleep before the next trial happens
                             self.trial_index += 1
-                            if self.trial_index == 1:
+                            if self.trial_index == len(self.metadata_index):
                                 self.shutdown_hook("Reached end of trial list. End of session")
                                 break  # experiment is done
+                            trial_info_filename_index = self.metadata_index_path[self.trial_index]
+                            trial_info_filepath = os.path.join(self.trial_info_dir_path)
+                            assert os.path.exists(trial_info_filepath) is not None
+                            with open(trial_info_filepath, "rb") as fp:
+                                self.env_params = pickle.load(fp)
+
+                            print ("ALGO CONDITION", self.env_params["algo_condition"])
+
+                            self.env.update_params(self.env_params)
+                            self.env.reset()
+                            self.env.render()
+                            self.env.set_information_text("Waiting....")
+                            self.trial_start_time = time.time()
+                            self.trial_index_pub.publish("start")
+                            self.trial_index_pub.publish(trial_info_filename_index)
+                            is_done = False
+                            self.is_restart = False
                         else:
                             self.shutdown_hook("Reached end of training")
                             break
@@ -374,7 +402,32 @@ class Simulator(object):
                         self.autonomy_activate_ctr = 0
 
                     if self.restart:
-                        pass
+                        if not self.training:
+                        print ("RESTART INITIATED")
+                        self.trial_marker_pub.publish("restart")
+                        self.restart = False
+                        time.sleep(5.0)
+                        # TODO should I be incrementing trial index here or should I just restart the same trial?
+                        if self.trial_index == len(self.metadata_index):
+                            self.shutdown_hook("Reached end of trial list. End of session")
+                            break
+                        trial_info_filename_index = self.metadata_index[self.trial_index]
+                        trial_info_filepath = os.path.join(
+                            self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl"
+                        )
+                        assert os.path.exists(trial_info_filepath) is not None
+                        with open(trial_info_filepath, "rb") as fp:
+                            self.env_params = pickle.load(fp)
+                        
+                        print ("ALGO CONDITION", self.env_params["algo_condition"])
+                        
+                        self.env.update_params(self.env_params)
+                        self.env.reset()
+                        self.env.render()
+                        self.trial_marker_pub.publish("start")
+                        self.trial_index_pub.publish(trial_info_filename_index)
+                        self.trial_start_time = time.time()
+                        is_done = False
 
                     (
                         robot_continuous_position,
@@ -382,8 +435,6 @@ class Simulator(object):
                         robot_discrete_state,
                         is_done,
                     ) = self.env.step(self.input_action)
-
-                    
 
                     if self.terminate:
                         self.shutdown_hook("Session terminated")
@@ -455,9 +506,7 @@ class Simulator(object):
                                 max_disamb_continuous_position = target_point
                                 self.update_attractor_ds_request.pfield_id = "disamb"
                                 self.update_attractor_ds_request.attractor_position = list(target_point)
-                                self.update_attractor_ds_request.attractor_orientation = float(
-                                    inferred_goal_pose[-1]
-                                )
+                                self.update_attractor_ds_request.attractor_orientation = float(inferred_goal_pose[-1])
                                 self.update_attractor_ds_srv(self.update_attractor_ds_request)
                                 self.is_autonomy_turn = True
 
@@ -578,8 +627,7 @@ class Simulator(object):
                     )
                     goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
                     if (
-                        np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position))
-                        < 1.0
+                        np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0
                     ):  # determine threshold
                         is_done = True
             r.sleep()
