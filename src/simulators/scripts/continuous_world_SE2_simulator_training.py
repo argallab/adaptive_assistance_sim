@@ -46,7 +46,7 @@ RAND_DIRECTION_FACTOR = 0.1
 
 
 class Simulator(object):
-    def __init__(self, subject_id, condition_block, block_id, training):
+    def __init__(self, subject_id, algo_condition_block, block_id, training):
         super(Simulator, self).__init__()
         rospy.init_node("Simulator")
         rospy.on_shutdown(self.shutdown_hook)
@@ -63,6 +63,7 @@ class Simulator(object):
 
         self.input_action = {}
         self.input_action["full_control_signal"] = user_vel
+        self.input_action['human'] = user_vel
 
         rospy.Subscriber("/user_vel", InterfaceSignal, self.joy_callback)
         rospy.Subscriber("/belief_info", BeliefInfo, self.belief_info_callback)
@@ -73,15 +74,15 @@ class Simulator(object):
         self.metadata_dir = os.path.join(os.path.dirname(__file__),"trial_folders", "training_metadata_dir")
 
         self.subject_id = subject_id
-        self.condition_block = condition_block  # pass these things from launch file
+        self.algo_condition_block = algo_condition_block  # pass these things from launch file
         self.block_id = block_id
         self.training = training
-        self.total_blocks = 6
+        self.total_blocks = 2
 
         self.training_block_filename = (
             self.subject_id
             + "_"
-            + self.condition_block
+            + self.algo_condition_block
             + "_condition_"
             + self.block_id
             + "_num_blocks_"
@@ -108,7 +109,7 @@ class Simulator(object):
         self.terminate = False
         self.restart = False
 
-        if self.trial_info_dir_path is not None and os.path.exists(self.trial_info_dir_path) and not self.training:
+        if self.trial_info_dir_path is not None and os.path.exists(self.trial_info_dir_path):
             # if trials are pregenerated then load from there.
             print ("PRECACHED TRIALS")
             self.metadata_index_path = os.path.join(self.metadata_dir, self.training_block_filename)
@@ -116,16 +117,18 @@ class Simulator(object):
             with open(self.metadata_index_path, "rb") as fp:
                 self.metadata_index = pickle.load(fp)
 
-            trial_info_filename_index = self.metadata_index_path[self.trial_index]
-            trial_info_filepath = os.path.join(self.trial_info_dir_path)
+            trial_info_filename_index = self.metadata_index[self.trial_index]
+            trial_info_filepath = os.path.join(self.trial_info_dir_path, str(trial_info_filename_index) + '.pkl')
             assert os.path.exists(trial_info_filepath) is not None
             with open(trial_info_filepath, "rb") as fp:
                 self.env_params = pickle.load(fp)
-
-            print ("ALGO CONDITION", self.env_params["algo_condition"])
+            
+            mdp_env_params = self.env_params['all_mdp_env_params']
+            world_bounds  = self.env_params['world_bounds']
+            self.blend_mode = self.env_params['blend_mode']
 
         # init pfields
-        self.blend_mode = self.env_params['blend_mode']
+        
         self._init_goal_pfields(
             self.env_params["goal_poses"],
             mdp_env_params["dynamic_obs_specs"],
@@ -147,9 +150,10 @@ class Simulator(object):
             pfield_id="generic",
         )
         # alpha from confidence function parameters
-        self.confidence_threshold = 0.4
-        self.confidence_max = 0.8
-        self.alpha_max = 0.9
+        
+        self.confidence_threshold = 1.05 / len(self.env_params['goal_poses'])
+        self.confidence_max =  1.14 / len(self.env_params['goal_poses'])
+        self.alpha_max = 0.8
         if self.confidence_max != self.confidence_threshold:
             self.confidence_slope = float(self.alpha_max) / (self.confidence_max - self.confidence_threshold)
         else:
@@ -200,9 +204,6 @@ class Simulator(object):
 
         self.p_g_given_phm = (1.0 / self.env_params["num_goals"]) * np.ones(self.env_params["num_goals"])
         self.autonomy_activate_ctr = 0
-        self.DISAMB_ACTIVATE_THRESHOLD = 100
-        self.is_autonomy_turn = False
-        self.has_human_initiated = False
         self.BLENDING_THRESHOLD = 15  # distance within which thje blending kicks in
 
         while not rospy.is_shutdown():
@@ -211,7 +212,6 @@ class Simulator(object):
             else:
                 if first_trial:
                     time.sleep(2)
-
                     self.env.reset()
                     self.env.render()
                     self.env.set_information_text("Waiting....")
@@ -221,102 +221,152 @@ class Simulator(object):
                     first_trial = False
                 else:
                     if is_done:
-                        if not self.training:
-                            print ("Move to NEXT TRIAL")
-                            self.trial_marker_pub.publish("end")
-                            self.env.render_clear("Loading next trial ...")
-                            time.sleep(5.0)  # sleep before the next trial happens
-                            self.trial_index += 1
-                            if self.trial_index == len(self.metadata_index):
-                                self.shutdown_hook("Reached end of trial list. End of session")
-                                break  # experiment is done
-                            trial_info_filename_index = self.metadata_index_path[self.trial_index]
-                            trial_info_filepath = os.path.join(self.trial_info_dir_path)
-                            assert os.path.exists(trial_info_filepath) is not None
-                            with open(trial_info_filepath, "rb") as fp:
-                                self.env_params = pickle.load(fp)
+                        print ("Move to NEXT TRIAL")
+                        self.trial_marker_pub.publish("end")
+                        self.env.render_clear("Loading next trial ...")
+                        time.sleep(5.0)  # sleep before the next trial happens
+                        self.trial_index += 1
+                        if self.trial_index == len(self.metadata_index):
+                            self.shutdown_hook("Reached end of trial list. End of session")
+                            break  # experiment is done
+                        trial_info_filename_index = self.metadata_index[self.trial_index]
+                        trial_info_filepath = os.path.join(self.trial_info_dir_path, str(trial_info_filename_index) + '.pkl')
+                        assert os.path.exists(trial_info_filepath) is not None
+                        with open(trial_info_filepath, "rb") as fp:
+                            self.env_params = pickle.load(fp)
 
-                            print ("ALGO CONDITION", self.env_params["algo_condition"])
+                        mdp_env_params = self.env_params['all_mdp_env_params']
+                        world_bounds  = self.env_params['world_bounds']
+                        self.blend_mode = self.env_params['blend_mode']
 
-                            self.env.update_params(self.env_params)
-                            self.env.reset()
-                            self.env.render()
-                            self.env.set_information_text("Waiting....")
-                            self.trial_start_time = time.time()
-                            self.trial_index_pub.publish("start")
-                            self.trial_index_pub.publish(trial_info_filename_index)
-                            is_done = False
-                            self.is_restart = False
-                        else:
-                            self.shutdown_hook("Reached end of training")
-                            break
+                        self._prepare_trial_setup(mdp_env_params, world_bounds)
+                        self.trial_start_time = time.time()
+                        self.trial_index_pub.publish("start")
+                        self.trial_index_pub.publish(trial_info_filename_index)
+                        is_done = False
+                        self.is_restart = False
+                        
 
-            # get current belief. and entropy of belief. compute argmax g
-            (
-                inferred_goal_id_str,
-                inferred_goal_id,
-                inferred_goal_prob,
-                normalized_h_of_p_g_given_phm,
-                argmax_goal_id,
-                argmax_goal_id_str,
-            ) = self._get_most_confident_goal()
-            # get human control action in full robot control space
-            human_vel = self.env.get_mode_conditioned_velocity(self.input_action["human"].interface_signal)  # robot_dim
-            is_mode_switch = self.input_action["human"].mode_switch
+                # get current belief. and entropy of belief. compute argmax g
+                (
+                    inferred_goal_id_str,
+                    inferred_goal_id,
+                    inferred_goal_prob,
+                    normalized_h_of_p_g_given_phm,
+                    argmax_goal_id,
+                    argmax_goal_id_str,
+                ) = self._get_most_confident_goal()
+                # get human control action in full robot control space
+                human_vel = self.env.get_mode_conditioned_velocity(self.input_action["human"].interface_signal)  # robot_dim
+                is_mode_switch = self.input_action["human"].mode_switch
 
-            # autonomy inferred a valid goal
-            if inferred_goal_id_str is not None and inferred_goal_prob is not None:
-                # get pfield vel for argmax g and current robot pose
-                robot_continuous_position = self.env.get_robot_position()
-                robot_continuous_orientation = self.env.get_robot_orientation()
-                self.compute_velocity_request.current_pos = robot_continuous_position
-                self.compute_velocity_request.current_orientation = robot_continuous_orientation
-                self.compute_velocity_request.pfield_id = (
-                    inferred_goal_id_str  # get pfeild vel corresponding to inferred goal
-                )
-                vel_response = self.compute_velocity_srv(self.compute_velocity_request)
-                autonomy_vel = list(vel_response.velocity_final)
-                inferred_goal_pose = self.env_params["goal_poses"][inferred_goal_id]
-                inferred_goal_position = inferred_goal_pose[:-1]
-                dist_weight = self._dist_based_weight(
-                    self.env_params["goal_poses"][inferred_goal_id][:-1], robot_continuous_position
-                )
-                if self.blend_mode == "blending":
-                    self.alpha = self._compute_alpha(inferred_goal_prob) * dist_weight
-                elif self.blend_mode == "teleop":
+                # autonomy inferred a valid goal
+                if inferred_goal_id_str is not None and inferred_goal_prob is not None:
+                    # get pfield vel for argmax g and current robot pose
+                    robot_continuous_position = self.env.get_robot_position()
+                    robot_continuous_orientation = self.env.get_robot_orientation()
+                    self.compute_velocity_request.current_pos = robot_continuous_position
+                    self.compute_velocity_request.current_orientation = robot_continuous_orientation
+                    self.compute_velocity_request.pfield_id = (
+                        inferred_goal_id_str  # get pfeild vel corresponding to inferred goal
+                    )
+                    vel_response = self.compute_velocity_srv(self.compute_velocity_request)
+                    autonomy_vel = list(vel_response.velocity_final)
+                    inferred_goal_pose = self.env_params["goal_poses"][inferred_goal_id]
+                    inferred_goal_position = inferred_goal_pose[:-1]
+                    dist_weight = self._dist_based_weight(
+                        self.env_params["goal_poses"][inferred_goal_id][:-1], robot_continuous_position
+                    )
+                    if self.blend_mode == "blending":
+                        self.alpha = self._compute_alpha(inferred_goal_prob) * dist_weight
+                    elif self.blend_mode == "teleop":
+                        autonomy_vel = list([0.0] * np.array(human_vel).shape[0])  # 0.0 autonomy vel
+                        self.alpha = 0.0
+
+                else:
+                    # no inferred goal due to high entropy of goal belief, hence autonomy vel is zero
                     autonomy_vel = list([0.0] * np.array(human_vel).shape[0])  # 0.0 autonomy vel
-                    self.alpha = 0.0
+                    self.alpha = 0.0  # no autonomy, purely human vel
 
-            else:
-                # no inferred goal due to high entropy of goal belief, hence autonomy vel is zero
-                autonomy_vel = list([0.0] * np.array(human_vel).shape[0])  # 0.0 autonomy vel
-                self.alpha = 0.0  # no autonomy, purely human vel
+                # blend autonomy velocity by combining it with user vel.
+                blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
+                # apply blend velocity to robot.
+                self.input_action["full_control_signal"] = blend_vel
+                # print(is_mode_switch)
 
-            # blend autonomy velocity by combining it with user vel.
-            blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
-            # apply blend velocity to robot.
-            self.input_action["full_control_signal"] = blend_vel
-            # print(is_mode_switch)
+                (robot_continuous_position, robot_continuous_orientation, robot_discrete_state, is_done,) = self.env.step(
+                    self.input_action
+                )
 
-            (robot_continuous_position, robot_continuous_orientation, robot_discrete_state, is_done,) = self.env.step(
-                self.input_action
-            )
+                if self.terminate:
+                    self.shutdown_hook("Session terminated")
+                    break
 
-            if self.terminate:
-                self.shutdown_hook("Session terminated")
-                break
-
-            self.env.render()
-            # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
-            if tuple(robot_discrete_state[:-1]) in self.env_params["all_mdp_env_params"]["all_goals"]:
-                index_goal = self.env_params["all_mdp_env_params"]["all_goals"].index(tuple(robot_discrete_state[:-1]))
-                goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
-                if (
-                    np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0
-                ):  # determine threshold
-                    is_done = True
+                self.env.render()
+                # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
+                if tuple(robot_discrete_state[:-1]) in self.env_params["all_mdp_env_params"]["all_goals"]:
+                    index_goal = self.env_params["all_mdp_env_params"]["all_goals"].index(tuple(robot_discrete_state[:-1]))
+                    goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
+                    if (
+                        np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0
+                    ):  # determine threshold
+                        is_done = True
 
             r.sleep()
+
+    def _prepare_trial_setup(self, mdp_env_params, world_bounds):
+        #init pfields
+        self._init_goal_pfields(
+            self.env_params["goal_poses"],
+            mdp_env_params["dynamic_obs_specs"],
+            mdp_env_params["cell_size"],
+            world_bounds,
+        )
+        self._init_other_pfields(
+            self.env_params["goal_poses"],
+            mdp_env_params["dynamic_obs_specs"],
+            mdp_env_params["cell_size"],
+            world_bounds,
+            pfield_id="disamb",
+        )
+        self._init_other_pfields(
+            self.env_params["goal_poses"],
+            mdp_env_params["dynamic_obs_specs"],
+            mdp_env_params["cell_size"],
+            world_bounds,
+            pfield_id="generic",
+        )
+
+        self.confidence_threshold = 1.05 / len(self.env_params['goal_poses'])
+        self.confidence_max =  1.14 / len(self.env_params['goal_poses'])
+        self.alpha_max = 0.8
+        if self.confidence_max != self.confidence_threshold:
+            self.confidence_slope = float(self.alpha_max) / (self.confidence_max - self.confidence_threshold)
+        else:
+            self.confidence_slope = -1.0
+
+        self.ENTROPY_THRESHOLD = 0.7
+
+        # reinit the environement
+        self.env_params["start"] = False
+        self.env.update_params(self.env_params)
+        self.env.reset()
+        self.env.render()
+        self.env.set_information_text("Waiting....")
+
+
+        #reset inference node
+        self.init_belief_request.num_goals = self.env_params["num_goals"]
+        status = self.init_belief_srv(self.init_belief_request)
+        # unfreeze belief update
+        self.freeze_update_request.data = False
+        self.freeze_update_srv(self.freeze_update_request)
+
+        self.p_g_given_phm = (1.0 / self.env_params["num_goals"]) * np.ones(self.env_params["num_goals"])
+        self.autonomy_activate_ctr = 0
+        
+        self.is_autonomy_turn = False
+        self.has_human_initiated = False
 
     def joy_callback(self, msg):
         self.input_action["human"] = msg
@@ -349,9 +399,7 @@ class Simulator(object):
             blend_vel = np.zeros_like(human_vel)
         return blend_vel
 
-    def _init_other_pfields(
-        self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds, pfield_id="generic"
-    ):
+    def _init_other_pfields(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds, pfield_id="generic"):
         common_obs_descs_list = self._init_pfield_obs_desc(obs_param_dict_list, cell_size, world_bounds)
         cell_size_x = cell_size["x"]
         cell_size_y = cell_size["y"]
@@ -449,7 +497,7 @@ class Simulator(object):
             self.update_attractor_ds_request.attractor_orientation = goal_pose[-1]  # goal orientation
             self.update_attractor_ds_srv(self.update_attractor_ds_request)
         
-        def _init_pfield_obs_desc(self, obs_param_dict_list, cell_size, world_bounds):
+    def _init_pfield_obs_desc(self, obs_param_dict_list, cell_size, world_bounds):
         cell_size_x = cell_size["x"]
         cell_size_y = cell_size["y"]
 
@@ -535,10 +583,10 @@ class Simulator(object):
 
 if __name__ == "__main__":
     subject_id = sys.argv[1]
-    condition_block = sys.argv[2]
+    algo_condition_block = sys.argv[2]
     block_id = sys.argv[3]
     training = int(sys.argv[4])
 
     print type(subject_id), type(block_id), type(training)
-    Simulator(subject_id, condition_block, block_id, training)
+    Simulator(subject_id, algo_condition_block, block_id, training)
     rospy.spin()

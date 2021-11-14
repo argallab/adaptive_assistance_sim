@@ -29,47 +29,21 @@ class DiscreteMIDisambAlgo(object):
     def __init__(self, env_params, subject_id):
         self.env_params = env_params
         assert self.env_params is not None
-
-        assert "mdp_list" in self.env_params
-        assert "spatial_window_half_length" in self.env_params
-
-        self.mdp_env_params = self.env_params["all_mdp_env_params"]
-        self.grid_width = self.mdp_env_params["grid_width"]
-        self.grid_height = self.mdp_env_params["grid_height"]
-
-        self.grid_scale = np.linalg.norm([self.grid_width, self.grid_height])
-        self.mdp_list = self.env_params["mdp_list"]
-        assert self.mdp_list is not None
-        assert len(self.mdp_list) > 0
+        self._setup_variables()
 
         self.subject_id = subject_id
-        self.num_goals = len(self.mdp_list)
-        self.SPATIAL_WINDOW_HALF_LENGTH = self.env_params["spatial_window_half_length"]
-        self.P_PHI_GIVEN_A = None
-        self.P_PHM_GIVEN_PHI = None
-        self.PHI_SPARSE_LEVEL = 0.0
-        self.PHM_SPARSE_LEVEL = 0.0
-        self.DEFAULT_PHI_GIVEN_A_NOISE = 0.2
-        self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.2
-
-        self.num_sample_trajectories = self.env_params.get("num_sample_trajectories", 250)
-        self.mode_set_type = self.env_params["mode_set_type"]
-        self.robot_type = self.env_params["robot_type"]
-        self.mode_set = CARTESIAN_MODE_SET_OPTIONS[self.robot_type][self.mode_set_type]
-        self.num_modes = len(self.mode_set)
-        self.num_discrete_orientations = self.mdp_env_params["num_discrete_orientations"]
-
-        self.num_modes = self.env_params.get("num_modes", 3)
-        self.kl_coeff = self.env_params.get("kl_coeff", 0.8)
-        self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
-        print(self.kl_coeff, self.dist_coeff)
-
         inference_engine_dir = os.path.abspath(
             os.path.join(os.path.dirname(os.path.dirname(__file__)), os.pardir, os.pardir, "inference_engine")
         )
         self.distribution_directory_path = os.path.join(inference_engine_dir, "personalized_distributions")
 
         print(self.distribution_directory_path)
+        self.P_PHI_GIVEN_A = None
+        self.P_PHM_GIVEN_PHI = None
+        self.PHI_SPARSE_LEVEL = 0.0
+        self.PHM_SPARSE_LEVEL = 0.0
+        self.DEFAULT_PHI_GIVEN_A_NOISE = 0.2
+        self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.2
 
         assert os.path.exists(self.distribution_directory_path)
         # unify the initialization of these distribution between different classes
@@ -97,6 +71,42 @@ class DiscreteMIDisambAlgo(object):
             self.init_P_PHM_GIVEN_PHI()
 
         print("Finished initializing DISAMB CLASS")
+
+    def _setup_variables(self):
+        assert "mdp_list" in self.env_params
+        assert "spatial_window_half_length" in self.env_params
+
+        self.mdp_env_params = self.env_params["all_mdp_env_params"]
+        self.grid_width = self.mdp_env_params["grid_width"]
+        self.grid_height = self.mdp_env_params["grid_height"]
+
+        self.grid_scale = np.linalg.norm([self.grid_width, self.grid_height])
+        self.mdp_list = self.env_params["mdp_list"]
+        assert self.mdp_list is not None
+        assert len(self.mdp_list) > 0
+
+        self.num_goals = len(self.mdp_list)
+        self.SPATIAL_WINDOW_HALF_LENGTH = self.env_params["spatial_window_half_length"]
+
+        self.num_sample_trajectories = self.env_params.get("num_sample_trajectories", 250)
+        self.mode_set_type = self.env_params["mode_set_type"]
+        self.robot_type = self.env_params["robot_type"]
+        self.mode_set = CARTESIAN_MODE_SET_OPTIONS[self.robot_type][self.mode_set_type]
+        self.num_modes = len(self.mode_set)
+        self.num_discrete_orientations = self.mdp_env_params["num_discrete_orientations"]
+
+        self.num_modes = self.env_params.get("num_modes", 3)
+        self.kl_coeff = self.env_params.get("kl_coeff", 0.8)
+        self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
+        self.kl_coeff = 0.5
+        self.dist_coeff = 0.5
+
+        print(self.kl_coeff, self.dist_coeff)
+
+    def update_params(self, env_params):
+        self.env_params = env_params
+        assert self.env_params is not None
+        self._setup_variables()
 
     def get_local_disamb_state(self, prior, current_state):
         # compute window around current_state

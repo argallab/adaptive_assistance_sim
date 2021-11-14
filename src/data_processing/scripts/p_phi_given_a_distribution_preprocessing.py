@@ -192,7 +192,7 @@ class PhiGivenAAnalysis(object):
             for action in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():
                 p_phi_given_a[mode][action] = collections.OrderedDict()
 
-                if mode == 0:
+                if mode == 1:
                     if action == "move_p":
                         prob = probabilities["right"]  # each pf these a 4D array
                     if action == "move_n":
@@ -201,7 +201,7 @@ class PhiGivenAAnalysis(object):
                         prob = probabilities["mode_switch_right_1"]
                     if action == "to_mode_l":
                         prob = probabilities["mode_switch_left_1"]
-                if mode == 1:
+                if mode == 2:
                     if action == "move_p":
                         prob = probabilities["up"]
                     if action == "move_n":
@@ -210,11 +210,11 @@ class PhiGivenAAnalysis(object):
                         prob = probabilities["mode_switch_right_2"]
                     if action == "to_mode_l":
                         prob = probabilities["mode_switch_left_2"]
-                if mode == 2:
+                if mode == 3:
                     if action == "move_p":
-                        prob = probabilities["counterclockwise"]
-                    if action == "move_n":
                         prob = probabilities["clockwise"]
+                    if action == "move_n":
+                        prob = probabilities["counterclockwise"]
                     if action == "to_mode_r":
                         prob = probabilities["mode_switch_right_3"]
                     if action == "to_mode_l":

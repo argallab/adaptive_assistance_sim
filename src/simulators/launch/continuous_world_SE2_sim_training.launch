@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <arg name="save" default="false" doc="Set to true if you wanted save bag file of trial"/>
+
+  <arg name="subject_id" default="test" doc="Unique string identifier for the subject"/>
+  <arg name="algo_condition_block" default="teleop" doc="condition type for the testing block. Can be either disamb or control. For loading up the appropriate trial block file"/>
+  <arg name="block_id" default="0" doc="block_id for the condition type for the testing block"/>
+  <arg name="training" default="1" doc="bool string indicating whether the simulator is run in training mode or not"/>
+  <!-- record bags -->
+  <!-- bag file name parameters -->
+  <group if="$(arg save)">
+    <include file="$(find simulators)/launch/record.launch">
+      <arg name="bag_prefix" value="$(arg subject_id)_$(arg condition_block)_condition_$(arg block_id)_adaptive_assistance"/>
+    </include>
+  </group>
+
+  
+	<arg name="SNP" default="true" doc="Set to true if using sip/puff to control arm."/>
+  <arg name="snp_training" default="0" doc="Set to true if snp is used for training"/>
+
+  <node pkg="sim_pfields" output="screen" type="sim_ds_obs_node_multiple.py" name="sim_ds_obs_node_multiple"/>
+  <node pkg="simulators" output="screen" type="continuous_world_SE2_simulator_training.py" name="continuous_world_SE2_simulator_training"  args="$(arg subject_id) $(arg algo_condition_block) $(arg block_id) $(arg training)"/>
+  <node pkg="inference_engine" output="screen" type="goal_inference.py" name="goal_inference"  args="$(arg subject_id)"/>
+  
+  
+  <include file="$(find teleop_nodes)/launch/teleop_nodes.launch">
+    <arg name="SNP" value="$(arg SNP)"/>
+    <arg name="snp_training" value="$(arg snp_training)"/>
+  </include>
+  
+  
+
+</launch>
