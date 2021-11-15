@@ -52,10 +52,7 @@ class Simulator(object):
         rospy.on_shutdown(self.shutdown_hook)
 
         self.called_shutdown = False
-        self.shutdown_pub = rospy.Publisher("/shutdown", String, queue_size=1)
-        self.trial_marker_pub = rospy.Publisher("/trial_marker", String, queue_size=1)
-        self.trial_index_pub = rospy.Publisher("/trial_index", Int8, queue_size=1)
-        self.robot_state_pub = rospy.Publisher("/robot_state", State, queue_size=1)
+        self._initialize_publishers()
 
         self.robot_state = State()
         self.dim = 3
@@ -70,7 +67,7 @@ class Simulator(object):
 
         self.env_params = None
         self.trial_info_dir_path = os.path.join(os.path.dirname(__file__), "trial_folders", "trial_dir")
-        self.metadata_dir = os.path.join(os.path.dirname(__file__),"trial_folders", "metadata_dir")
+        self.metadata_dir = os.path.join(os.path.dirname(__file__), "trial_folders", "metadata_dir")
 
         self.subject_id = subject_id
         self.algo_condition_block = algo_condition_block  # pass these things from launch file
@@ -111,26 +108,26 @@ class Simulator(object):
             # if trials are pregenerated then load from there.
             print ("PRECACHED TRIALS")
             self.metadata_index_path = os.path.join(self.metadata_dir, self.testing_block_filename)
-            print(self.metadata_index_path)
+            print (self.metadata_index_path)
             assert os.path.exists(self.metadata_index_path)
             with open(self.metadata_index_path, "rb") as fp:
                 self.metadata_index = pickle.load(fp)
 
             trial_info_filename_index = self.metadata_index[self.trial_index]
             trial_info_filepath = os.path.join(self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl")
-            print(trial_info_filename_index, self.trial_info_dir_path)
+            print (trial_info_filename_index, self.trial_info_dir_path)
             assert os.path.exists(trial_info_filepath)
             with open(trial_info_filepath, "rb") as fp:
                 self.env_params = pickle.load(fp)
 
-            mdp_env_params = self.env_params['all_mdp_env_params']
-            world_bounds  = self.env_params['world_bounds']
-            self.algo_condition = self.env_params['algo_condition']
-            
+            mdp_env_params = self.env_params["all_mdp_env_params"]
+            world_bounds = self.env_params["world_bounds"]
+            self.algo_condition = self.env_params["algo_condition"]
+
             print ("ALGO CONDITION", self.algo_condition)
         else:
             pass
-        
+
         self._init_goal_pfields(
             self.env_params["goal_poses"],
             mdp_env_params["dynamic_obs_specs"],
@@ -151,10 +148,10 @@ class Simulator(object):
             world_bounds,
             pfield_id="generic",
         )
-        
+
         # alpha from confidence function parameters
-        self.confidence_threshold = 1.05 / len(self.env_params['goal_poses'])
-        self.confidence_max =  1.14 / len(self.env_params['goal_poses'])
+        self.confidence_threshold = 1.05 / len(self.env_params["goal_poses"])
+        self.confidence_max = 1.14 / len(self.env_params["goal_poses"])
         self.alpha_max = 0.8
         if self.confidence_max != self.confidence_threshold:
             self.confidence_slope = float(self.alpha_max) / (self.confidence_max - self.confidence_threshold)
@@ -208,7 +205,7 @@ class Simulator(object):
 
         self.p_g_given_phm = (1.0 / self.env_params["num_goals"]) * np.ones(self.env_params["num_goals"])
         self.autonomy_activate_ctr = 0
-        
+
         self.is_autonomy_turn = False
         self.has_human_initiated = False
         self.DISAMB_ACTIVATE_THRESHOLD = 100
@@ -240,14 +237,16 @@ class Simulator(object):
                                 self.shutdown_hook("Reached end of trial list. End of session")
                                 break  # experiment is done
                             trial_info_filename_index = self.metadata_index[self.trial_index]
-                            trial_info_filepath = os.path.join(self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl")
+                            trial_info_filepath = os.path.join(
+                                self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl"
+                            )
                             assert os.path.exists(trial_info_filepath) is not None
                             with open(trial_info_filepath, "rb") as fp:
                                 self.env_params = pickle.load(fp)
-                            
-                            mdp_env_params = self.env_params['all_mdp_env_params']
-                            world_bounds  = self.env_params['world_bounds']
-                            self.algo_condition = self.env_params['algo_condition']
+
+                            mdp_env_params = self.env_params["all_mdp_env_params"]
+                            world_bounds = self.env_params["world_bounds"]
+                            self.algo_condition = self.env_params["algo_condition"]
                             print ("ALGO CONDITION", self.algo_condition)
 
                             self._prepare_trial_setup(mdp_env_params, world_bounds)
@@ -325,7 +324,7 @@ class Simulator(object):
 
                     if self.restart:
                         if not self.training:
-                            print("RESTART INITIATED")
+                            print ("RESTART INITIATED")
                             self.trial_marker_pub.publish("restart")
                             self.restart = False
                             time.sleep(5.0)
@@ -340,13 +339,13 @@ class Simulator(object):
                             assert os.path.exists(trial_info_filepath) is not None
                             with open(trial_info_filepath, "rb") as fp:
                                 self.env_params = pickle.load(fp)
-                            
-                            mdp_env_params = self.env_params['all_mdp_env_params']
-                            world_bounds = self.env_params['world_bounds']
-                            self.algo_condition = self.env_params['algo_condition']
+
+                            mdp_env_params = self.env_params["all_mdp_env_params"]
+                            world_bounds = self.env_params["world_bounds"]
+                            self.algo_condition = self.env_params["algo_condition"]
                             print ("ALGO CONDITION", self.algo_condition)
                             self._prepare_trial_setup(mdp_env_params, world_bounds)
-                            
+
                             self.trial_marker_pub.publish("start")
                             self.trial_index_pub.publish(trial_info_filename_index)
                             self.trial_start_time = time.time()
@@ -467,7 +466,8 @@ class Simulator(object):
                         )
                         goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
                         if (
-                            np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0
+                            np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position))
+                            < 1.0
                         ):  # determine threshold
                             is_done = True
                 else:
@@ -554,11 +554,16 @@ class Simulator(object):
 
                     self.env.render()
 
-                
             r.sleep()
 
+    def _initialize_publishers(self):
+        self.shutdown_pub = rospy.Publisher("/shutdown", String, queue_size=1)
+        self.trial_marker_pub = rospy.Publisher("/trial_marker", String, queue_size=1)
+        self.trial_index_pub = rospy.Publisher("/trial_index", Int8, queue_size=1)
+        self.robot_state_pub = rospy.Publisher("/robot_state", State, queue_size=1)
+
     def _prepare_trial_setup(self, mdp_env_params, world_bounds):
-        #init pfields
+        # init pfields
         self._init_goal_pfields(
             self.env_params["goal_poses"],
             mdp_env_params["dynamic_obs_specs"],
@@ -580,8 +585,8 @@ class Simulator(object):
             pfield_id="generic",
         )
 
-        self.confidence_threshold = 1.05 / len(self.env_params['goal_poses'])
-        self.confidence_max =  1.14 / len(self.env_params['goal_poses'])
+        self.confidence_threshold = 1.05 / len(self.env_params["goal_poses"])
+        self.confidence_max = 1.14 / len(self.env_params["goal_poses"])
         self.alpha_max = 0.8
         if self.confidence_max != self.confidence_threshold:
             self.confidence_slope = float(self.alpha_max) / (self.confidence_max - self.confidence_threshold)
@@ -597,10 +602,10 @@ class Simulator(object):
         self.env.render()
         self.env.set_information_text("Waiting....")
 
-        #update the disamb node
+        # update the disamb node
         self.disamb_algo.update_params(self.env_params)
 
-        #reset inference node
+        # reset inference node
         self.init_belief_request.num_goals = self.env_params["num_goals"]
         status = self.init_belief_srv(self.init_belief_request)
         # unfreeze belief update
@@ -609,10 +614,9 @@ class Simulator(object):
 
         self.p_g_given_phm = (1.0 / self.env_params["num_goals"]) * np.ones(self.env_params["num_goals"])
         self.autonomy_activate_ctr = 0
-        
+
         self.is_autonomy_turn = False
         self.has_human_initiated = False
-        
 
     def _convert_discrete_state_to_continuous_pose(self, discrete_state, cell_size, world_bounds):
         # could be moved to utils
@@ -653,6 +657,7 @@ class Simulator(object):
             self.terminate = True
         if k == key.R:
             self.restart = True
+
     def _blend_velocities(self, human_vel, autonomy_vel):
         if np.linalg.norm(human_vel) > 1e-5:
             blend_vel = self.alpha * autonomy_vel + (1.0 - self.alpha) * human_vel
@@ -858,8 +863,6 @@ class Simulator(object):
         elif d > D:
             dist_weight = weight_D * np.exp(-(d - D))
         return dist_weight
-
-    
 
 
 if __name__ == "__main__":
