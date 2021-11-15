@@ -168,6 +168,8 @@ def _add_attrs(geom, attrs):
         geom.set_color(*attrs["color"])
     if "linewidth" in attrs:
         geom.set_linewidth(attrs["linewidth"])
+    if "alpha" in attrs:
+        geom.set_alpha(attrs['alpha'])
 
 class Geom(object):
     def __init__(self):
@@ -184,7 +186,12 @@ class Geom(object):
     def add_attr(self, attr):
         self.attrs.append(attr)
     def set_color(self, r, g, b):
-        self._color.vec4 = (r, g, b, 1)
+        color_vec4 = self._color.vec4
+        self._color.vec4 = (r, g, b, color_vec4[3])
+
+    def set_alpha(self, alpha):
+        color_vec4 = self._color.vec4
+        self._color.vec4 = (color_vec4[0], color_vec4[1], color_vec4[2], alpha)
 
 class Attr(object):
     def enable(self):

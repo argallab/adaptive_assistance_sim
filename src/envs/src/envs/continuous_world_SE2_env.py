@@ -186,13 +186,29 @@ class ContinuousWorldSE2Env(object):
             trans = f.body.transform
             if type(f.shape) is b2CircleShape:
                 t = Transform(translation=trans.position)
-                self.viewer.draw_circle(f.shape.radius, 30, color=self.robot.robot_color, filled=True).add_attr(t)
+                self.viewer.draw_circle(
+                    f.shape.radius, 30, color=self.robot.robot_color, filled=True, alpha=0.6
+                ).add_attr(t)
 
     def _render_mode_switch_display(self):
         allowed_control_dimensions = self.robot.get_current_allowed_dimensions()
         for cd in range(self.robot_type.value):
-            position = self.LOCS_FOR_CONTROL_DIM_DISPLAY[cd]["position"]
-            t = Transform(translation=position)
+            if cd == 1:  # if y diemsnions
+                t = Transform(
+                    translation=(
+                        MODE_DISPLAY_CIRCLE_START_POSITION_S[0] + cd * MODE_DISPLAY_CIRCLE_X_OFFSET_S,
+                        MODE_DISPLAY_CIRCLE_START_POSITION_S[1],
+                    )
+                )
+            else:
+                t = Transform(
+                    translation=(
+                        MODE_DISPLAY_CIRCLE_START_POSITION_S[0] + cd * MODE_DISPLAY_CIRCLE_X_OFFSET_S,
+                        MODE_DISPLAY_CIRCLE_START_POSITION_S[1] - MODE_DISPLAY_CIRCLE_Y_OFFSET_S,
+                    )
+                )
+            # position = self.LOCS_FOR_CONTROL_DIM_DISPLAY[cd]["position"]
+            # t = Transform(translation=position)
             if cd in allowed_control_dimensions:
                 self.viewer.draw_circle(MODE_DISPLAY_RADIUS / SCALE, 30, True, color=ACTIVE_MODE_COLOR).add_attr(t)
             else:
@@ -205,7 +221,7 @@ class ContinuousWorldSE2Env(object):
         self.viewer.draw_text(
             "Horizontal",
             x=MODE_DISPLAY_TEXT_START_POSITION[0],
-            y=MODE_DISPLAY_TEXT_START_POSITION[1],
+            y=MODE_DISPLAY_TEXT_START_POSITION[1] - MODE_DISPLAY_CIRCLE_Y_OFFSET_S * SCALE,
             font_size=MODE_DISPLAY_TEXT_FONTSIZE,
             color=MODE_DISPLAY_TEXT_COLOR,
             anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
@@ -221,7 +237,7 @@ class ContinuousWorldSE2Env(object):
         self.viewer.draw_text(
             "Rotation",
             x=MODE_DISPLAY_TEXT_START_POSITION[0] + 2 * MODE_DISPLAY_TEXT_X_OFFSET,
-            y=MODE_DISPLAY_TEXT_START_POSITION[1],
+            y=MODE_DISPLAY_TEXT_START_POSITION[1] - MODE_DISPLAY_CIRCLE_Y_OFFSET_S * SCALE,
             font_size=MODE_DISPLAY_TEXT_FONTSIZE,
             color=MODE_DISPLAY_TEXT_COLOR,
             anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
