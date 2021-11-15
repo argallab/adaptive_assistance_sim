@@ -1,3 +1,4 @@
-string discrete_location
-float64 discrete_orientation
-string mode
+int32 discrete_x
+int32 discrete_y
+int32 discrete_orientation
+int32 discrete_mode

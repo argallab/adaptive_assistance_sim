@@ -393,6 +393,12 @@ class RobotSE2(object):
     def get_current_mode(self):
         return self.current_mode
 
+    def get_linear_velocity(self):
+        return self.robot.linearVelocity
+
+    def get_angular_velocity(self):
+        return self.robot.angularVelocity
+
     # setters
     def set_position(self, position):
         self.robot.position = position

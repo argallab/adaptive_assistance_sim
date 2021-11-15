@@ -58,6 +58,7 @@ add_message_files(
   State.msg
   DiscreteState4D.msg
   State4D.msg
+  ContinuousState.msg
 )
 
 ## Generate services in the 'srv' folder

@@ -1,0 +1,3 @@
+Header header
+float64[] robot_continuous_position
+float64 robot_continuous_orientation

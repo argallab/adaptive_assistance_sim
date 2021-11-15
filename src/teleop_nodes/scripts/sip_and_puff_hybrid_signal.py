@@ -11,7 +11,7 @@ from std_msgs.msg import Bool
 from std_msgs.msg import MultiArrayDimension
 from teleop_nodes.msg import InterfaceSignal
 from teleop_nodes.msg import ModeSwitch
-from std_msgs.msg import Int16
+from std_msgs.msg import Int16, String
 from teleop_nodes.cfg import SipPuffModeSwitchParadigmConfig
 from teleop_nodes.srv import SetMode, SetModeRequest, SetModeResponse
 from std_srvs.srv import SetBool, SetBoolResponse
@@ -43,6 +43,7 @@ class SNPInput(HybridControlInput):
         rospy.loginfo("Found sim_env")
 
         self.switch_mode_in_robot_service = rospy.ServiceProxy("/sim_env/switch_mode_in_robot", SwitchModeSrv)
+        self.switch_mode_pub = rospy.Publisher("mode_switch", String, queue_size=1)
 
     def initialize_subscribers(self):
         rospy.Subscriber("/joy_sip_puff", Joy, self.receive)
@@ -57,16 +58,19 @@ class SNPInput(HybridControlInput):
             if msg.buttons[0] or msg.buttons[3]:
                 req.mode_switch_action = "to_mode_r"
                 self.switch_mode_in_robot_service(req)
+                self.switch_mode_pub.publish("to_mode_r")
                 switch = True
 
         elif self.mode_switch_paradigm == 2:
             if msg.buttons[0]:
                 req.mode_switch_action = "to_mode_r"
                 self.switch_mode_in_robot_service(req)
+                self.switch_mode_pub.publish("to_mode_r")
                 switch = True
             elif msg.buttons[3]:
                 req.mode_switch_action = "to_mode_l"
                 self.switch_mode_in_robot_service(req)
+                self.switch_mode_pub.publish("to_mode_l")
                 switch = True
 
         if switch:

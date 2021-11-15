@@ -8,10 +8,20 @@
 /joy_sip_puff
 /joy_sip_puff_before
 /user_vel
+/human_vel
+/autonomy_vel
+/blend_vel
 /joy_cont_asl
 /keyboard_entry
 /command_prompt
+/alpha
+/belief_info
+/turn_indicator
+/function_timer
+/has_human_initiated
+/freeze_update
 /mode_switches
+/mode_switch
 /user_response
 /sim_state
 /action_prompt
@@ -19,7 +29,6 @@
 /trial_index
 /shutdown
 /robot_state
-/infer_correct_info
 " 
 
 />

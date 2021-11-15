@@ -478,7 +478,12 @@ class ContinuousWorldSE2Env(object):
 
         y_lb = self.world_bounds["yrange"]["lb"] + ROBOT_RADIUS / SCALE
         y_ub = self.world_bounds["yrange"]["ub"] - ROBOT_RADIUS / SCALE
-        if robot_position[0] < x_lb or robot_position[0] > x_ub or robot_position[1] < y_lb or robot_position[1] > y_ub:
+        if (
+            robot_position[0] < x_lb
+            or robot_position[0] > x_ub
+            or robot_position[1] < y_lb
+            or robot_position[1] > y_ub
+        ):
             return False
         else:
             return True
@@ -520,6 +525,12 @@ class ContinuousWorldSE2Env(object):
     def get_robot_orientation(self):
         return self.robot.get_angle()  # [0, 2pi]
 
+    def get_robot_linear_velocity(self):
+        return self.robot.get_linear_velocity()
+
+    def get_robot_angular_velocity(self):
+        return self.robot.get_angular_velocity()
+
     def get_mode_conditioned_velocity(self, interface_signal):
         return self.robot.mode_conditioned_velocity(interface_signal)
 
@@ -540,9 +551,8 @@ class ContinuousWorldSE2Env(object):
         return (
             self.robot.get_position(),
             self.robot.get_angle(),
+            self.robot.get_linear_velocity(),
+            self.robot.get_angular_velocity(),
             self.current_discrete_mdp_state,
-            # [user_vel[0], user_vel[1]],
-            # -user_vel[2],
-            # self.current_mode,
             False,
         )
