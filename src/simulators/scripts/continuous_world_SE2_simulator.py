@@ -1,11 +1,6 @@
 #!/usr/bin/env python
-
-import collections
-
-from Box2D.Box2D import b2WeldJointDef
 import rospy
 import time
-from sensor_msgs.msg import Joy
 from envs.continuous_world_SE2_env import ContinuousWorldSE2Env
 from disamb_algo.discrete_mi_disamb_algo import DiscreteMIDisambAlgo
 from sim_pfields.msg import CuboidObs
@@ -14,7 +9,7 @@ from sim_pfields.srv import AttractorPos, AttractorPosRequest, AttractorPosRespo
 from sim_pfields.srv import ComputeVelocity, ComputeVelocityRequest, ComputeVelocityResponse
 
 from std_msgs.msg import Float32MultiArray, Float32
-from std_msgs.msg import MultiArrayDimension, String, Int8
+from std_msgs.msg import String, Int8
 from teleop_nodes.msg import InterfaceSignal
 from simulators.msg import State, DiscreteState, ContinuousState
 from simulators.srv import InitBelief, InitBeliefRequest, InitBeliefResponse
@@ -23,7 +18,6 @@ from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 
 
 from inference_engine.msg import BeliefInfo
-from teleop_nodes.srv import SetMode, SetModeRequest, SetModeResponse
 from mdp.mdp_discrete_SE2_gridworld_with_modes import MDPDiscreteSE2GridWorldWithModes
 from pyglet.window import key
 import numpy as np
@@ -33,7 +27,6 @@ import random
 import sys
 import os
 import copy
-import itertools
 from mdp.mdp_utils import *
 from adaptive_assistance_sim_utils import *
 
@@ -296,10 +289,12 @@ class Simulator(object):
                             self.env_params["goal_poses"][inferred_goal_id][:-1], robot_continuous_position
                         )
                         self.alpha = self._compute_alpha(inferred_goal_prob) * dist_weight
+                        self.inferred_goal_pub.publish(inferred_goal_id_str)
                     else:
                         # no inferred goal due to high entropy of goal belief, hence autonomy vel is zero
                         autonomy_vel = list([0.0] * np.array(human_vel).shape[0])  # 0.0 autonomy vel
                         self.alpha = 0.0  # no autonomy, purely human vel
+                        self.inferred_goal_pub.publish('None')
                     
                     self.autonomy_vel_msg.data = list(autonomy_vel)
                     # blend autonomy velocity by combining it with user vel.
@@ -478,6 +473,7 @@ class Simulator(object):
                             # if so, get current argmax goal pose
                             argmax_goal_pose = self.env_params["goal_poses"][argmax_goal_id]
                             argmax_goal_position = argmax_goal_pose[:-1]
+                            self.argmax_goal_pub.publish(argmax_goal_id_str)
                             # connect the line joining current position and inferref goal position.
                             self.function_timer_pub.publish('before')
                             target_point = self._get_target_along_line(robot_continuous_position, argmax_goal_position)
@@ -499,16 +495,27 @@ class Simulator(object):
                         # update mode if necessary
 
                     # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
-                    if tuple(robot_discrete_state[:-1]) in self.env_params["all_mdp_env_params"]["all_goals"]:
-                        index_goal = self.env_params["all_mdp_env_params"]["all_goals"].index(
-                            tuple(robot_discrete_state[:-1])
-                        )
-                        goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
-                        if (
-                            np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position))
-                            < 1.0
-                        ):  # determine threshold
-                            is_done = True
+                    for g in self.env_params['goal_poses']:
+                        goal_continuous_position = g[:-1]
+                        goal_continuous_orientation = g[-1]
+                        if (np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0):
+                            abs_diff_orientation = abs(goal_continuous_orientation - robot_continuous_orientation)
+                            if abs_diff_orientation > PI:
+                                abs_diff_orientation = 2*PI - abs_diff_orientation
+                            if abs_diff_orientation < 0.2 and self.has_human_initiated:
+                                is_done=True
+                                break
+                        
+                    # if tuple(robot_discrete_state[:-1]) in self.env_params["all_mdp_env_params"]["all_goals"]:
+                    #     index_goal = self.env_params["all_mdp_env_params"]["all_goals"].index(
+                    #         tuple(robot_discrete_state[:-1])
+                    #     )
+                    #     goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
+                    #     if (
+                    #         np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position))
+                    #         < 1.0
+                    #     ):  # determine threshold
+                    #         is_done = True
                 else:
                     # what to do during autonomy turn
 
@@ -630,6 +637,8 @@ class Simulator(object):
         self.freeze_update_pub = rospy.Publisher("/freeze_update", String, queue_size=1)
         self.disamb_discrete_state_pub = rospy.Publisher('/disamb_discrete_state', DiscreteState, queue_size=1)
         self.autonomy_turn_target_pub = rospy.Publisher('/autonomy_turn_target', ContinuousState, queue_size=1)
+        self.argmax_goal_pub = rospy.Publisher('/argmax_goal', String, queue_size=1)
+        self.inferred_goal_pub = rospy.Publisher('/inferred_goal', String, queue_size=1)
 
         self.robot_state = State()
         self.robot_discrete_state = DiscreteState()
@@ -899,7 +908,10 @@ class Simulator(object):
         uniform_distribution = np.array([1.0 / p_g_given_phm_vector.size] * p_g_given_phm_vector.size)
         max_entropy = -np.dot(uniform_distribution, np.log2(uniform_distribution))
         normalized_h_of_p_g_given_phm = -np.dot(p_g_given_phm_vector, np.log2(p_g_given_phm_vector)) / max_entropy
-        argmax_goal_id = np.argmax(p_g_given_phm_vector)
+
+        argmax_list = np.argwhere(p_g_given_phm_vector == np.amax(p_g_given_phm_vector)).flatten().tolist()
+        argmax_goal_id = random.choice(argmax_list)
+        # argmax_goal_id = np.argmax(p_g_given_phm_vector)
         argmax_goal_id_str = "goal_" + str(argmax_goal_id)
         if normalized_h_of_p_g_given_phm <= self.ENTROPY_THRESHOLD:
             inferred_goal_id = np.argmax(p_g_given_phm_vector)
