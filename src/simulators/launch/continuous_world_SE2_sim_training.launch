@@ -4,10 +4,10 @@
 
   <arg name="save" default="false" doc="Set to true if you wanted save bag file of trial"/>
 
-  <arg name="subject_id" default="test" doc="Unique string identifier for the subject"/>
+  <arg name="subject_id" default="train" doc="Unique string identifier for the subject"/>
   <arg name="algo_condition_block" default="teleop" doc="condition type for the testing block. Can be either disamb or control. For loading up the appropriate trial block file"/>
   <arg name="block_id" default="0" doc="block_id for the condition type for the testing block"/>
-  <arg name="training" default="1" doc="bool string indicating whether the simulator is run in training mode or not"/>
+  <arg name="training" default="0" doc="bool string indicating whether the simulator is run in training mode or not"/>
   <!-- record bags -->
   <!-- bag file name parameters -->
   <group if="$(arg save)">
@@ -29,7 +29,6 @@
     <arg name="SNP" value="$(arg SNP)"/>
     <arg name="snp_training" value="$(arg snp_training)"/>
   </include>
-  
   
 
 </launch>

@@ -53,15 +53,20 @@ class Simulator(object):
         self.trial_index = 0
 
         self.env_params = None
-        self.trial_info_dir_path = os.path.join(os.path.dirname(__file__), "trial_folders", "trial_dir")
-        self.metadata_dir = os.path.join(os.path.dirname(__file__), "trial_folders", "metadata_dir")
+        self.training = training
+        if not self.training:
+            self.trial_info_dir_path = os.path.join(os.path.dirname(__file__), "trial_folders", "trial_dir")
+            self.metadata_dir = os.path.join(os.path.dirname(__file__), "trial_folders", "metadata_dir")
+            self.total_blocks = 6
+        else:
+            self.trial_info_dir_path = os.path.join(os.path.dirname(__file__), "trial_folders", "turntaking_trial_dir")
+            self.metadata_dir = os.path.join(os.path.dirname(__file__), "trial_folders", "turntaking_metadata_dir")
+            self.total_blocks = 1
 
         self.subject_id = subject_id
         self.algo_condition_block = algo_condition_block  # pass these things from launch file
         self.block_id = block_id
-        self.training = training
-        self.total_blocks = 6
-
+        
         self.testing_block_filename = (
             self.subject_id
             + "_"
@@ -91,7 +96,7 @@ class Simulator(object):
 
         self.terminate = False
         self.restart = False
-        if self.trial_info_dir_path is not None and os.path.exists(self.trial_info_dir_path) and not self.training:
+        if self.trial_info_dir_path is not None and os.path.exists(self.trial_info_dir_path):
             # if trials are pregenerated then load from there.
             print ("PRECACHED TRIALS")
             self.metadata_index_path = os.path.join(self.metadata_dir, self.testing_block_filename)
@@ -181,10 +186,6 @@ class Simulator(object):
 
         r = rospy.Rate(100)
         self.trial_start_time = time.time()
-        if not self.training:
-            self.max_time = 1000
-        else:
-            self.max_time = 1000
 
         is_done = False
         first_trial = True
@@ -215,39 +216,34 @@ class Simulator(object):
                     first_trial = False
                 else:
                     if is_done:
-                        if not self.training:
-                            print ("Move to NEXT TRIAL")
-                            self.trial_marker_pub.publish("end")
-                            self.env.render_clear("Loading next trial ...")
-                            time.sleep(5.0)  # sleep before the next trial happens
-                            self.trial_index += 1
-                            if self.trial_index == len(self.metadata_index):
-                                self.shutdown_hook("Reached end of trial list. End of session")
-                                break  # experiment is done
-                            trial_info_filename_index = self.metadata_index[self.trial_index]
-                            trial_info_filepath = os.path.join(
-                                self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl"
-                            )
-                            assert os.path.exists(trial_info_filepath) is not None
-                            with open(trial_info_filepath, "rb") as fp:
-                                self.env_params = pickle.load(fp)
+                        print ("Move to NEXT TRIAL")
+                        self.trial_marker_pub.publish("end")
+                        self.env.render_clear("Loading next trial ...")
+                        time.sleep(5.0)  # sleep before the next trial happens
+                        self.trial_index += 1
+                        if self.trial_index == len(self.metadata_index):
+                            self.shutdown_hook("Reached end of trial list. End of session")
+                            break  # experiment is done
+                        trial_info_filename_index = self.metadata_index[self.trial_index]
+                        trial_info_filepath = os.path.join(
+                            self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl"
+                        )
+                        assert os.path.exists(trial_info_filepath) is not None
+                        with open(trial_info_filepath, "rb") as fp:
+                            self.env_params = pickle.load(fp)
 
-                            mdp_env_params = self.env_params["all_mdp_env_params"]
-                            world_bounds = self.env_params["world_bounds"]
-                            self.algo_condition = self.env_params["algo_condition"]
-                            print ("ALGO CONDITION", self.algo_condition)
+                        mdp_env_params = self.env_params["all_mdp_env_params"]
+                        world_bounds = self.env_params["world_bounds"]
+                        self.algo_condition = self.env_params["algo_condition"]
+                        print ("ALGO CONDITION", self.algo_condition)
 
-                            self._prepare_trial_setup(mdp_env_params, world_bounds)
-                            self.trial_start_time = time.time()
-                            self.trial_marker_pub.publish("start")
-                            self.trial_index_pub.publish(trial_info_filename_index)
-                            self.turn_indicator_pub.publish('human')
-                            is_done = False
-                            self.is_restart = False
-                        else:
-                            self.trial_marker_pub.publish("end")
-                            self.shutdown_hook("Reached end of training")
-                            break
+                        self._prepare_trial_setup(mdp_env_params, world_bounds)
+                        self.trial_start_time = time.time()
+                        self.trial_marker_pub.publish("start")
+                        self.trial_index_pub.publish(trial_info_filename_index)
+                        self.turn_indicator_pub.publish('human')
+                        is_done = False
+                        self.is_restart = False
                 
                 human_vel = self.env.get_mode_conditioned_velocity(
                     self.input_action["human"].interface_signal
@@ -324,33 +320,32 @@ class Simulator(object):
                         self.autonomy_activate_ctr = 0
 
                     if self.restart:
-                        if not self.training:
-                            print ("RESTART INITIATED")
-                            self.trial_marker_pub.publish("restart")
-                            self.restart = False
-                            time.sleep(5.0)
-                            # TODO should I be incrementing trial index here or should I just restart the same trial?
-                            if self.trial_index == len(self.metadata_index):
-                                self.shutdown_hook("Reached end of trial list. End of session")
-                                break
-                            trial_info_filename_index = self.metadata_index[self.trial_index]
-                            trial_info_filepath = os.path.join(
-                                self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl"
-                            )
-                            assert os.path.exists(trial_info_filepath) is not None
-                            with open(trial_info_filepath, "rb") as fp:
-                                self.env_params = pickle.load(fp)
+                        print ("RESTART INITIATED")
+                        self.trial_marker_pub.publish("restart")
+                        self.restart = False
+                        time.sleep(5.0)
+                        # TODO should I be incrementing trial index here or should I just restart the same trial?
+                        if self.trial_index == len(self.metadata_index):
+                            self.shutdown_hook("Reached end of trial list. End of session")
+                            break
+                        trial_info_filename_index = self.metadata_index[self.trial_index]
+                        trial_info_filepath = os.path.join(
+                            self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl"
+                        )
+                        assert os.path.exists(trial_info_filepath) is not None
+                        with open(trial_info_filepath, "rb") as fp:
+                            self.env_params = pickle.load(fp)
 
-                            mdp_env_params = self.env_params["all_mdp_env_params"]
-                            world_bounds = self.env_params["world_bounds"]
-                            self.algo_condition = self.env_params["algo_condition"]
-                            print ("ALGO CONDITION", self.algo_condition)
-                            self._prepare_trial_setup(mdp_env_params, world_bounds)
+                        mdp_env_params = self.env_params["all_mdp_env_params"]
+                        world_bounds = self.env_params["world_bounds"]
+                        self.algo_condition = self.env_params["algo_condition"]
+                        print ("ALGO CONDITION", self.algo_condition)
+                        self._prepare_trial_setup(mdp_env_params, world_bounds)
 
-                            self.trial_marker_pub.publish("start")
-                            self.trial_index_pub.publish(trial_info_filename_index)
-                            self.trial_start_time = time.time()
-                            is_done = False
+                        self.trial_marker_pub.publish("start")
+                        self.trial_index_pub.publish(trial_info_filename_index)
+                        self.trial_start_time = time.time()
+                        is_done = False
 
                     (
                         robot_continuous_position,

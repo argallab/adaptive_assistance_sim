@@ -209,7 +209,7 @@ def generate_experiment_trials(args):
 
         mdp_list = create_mdp_list(trial_info_dict["all_mdp_env_params"])
         trial_info_dict["mdp_list"] = mdp_list
-        trial_info_dict["num_goals"] = random.choice(range(3, 5))
+        trial_info_dict["num_goals"] = num_goals
         trial_info_dict["is_visualize_grid"] = False
 
         discrete_robot_state = _create_start_state(start_location, start_mode)
@@ -257,6 +257,92 @@ def generate_experiment_trials(args):
         pickle.dump(algo_condition_to_pkl_index, fp)
 
 
+def generate_turn_taking_practice_trials(args):
+    turntaking_trial_dir = args.turntaking_trial_dir
+    turntaking_metadata_dir = args.turntaking_metadata_dir
+    if not os.path.exists(turntaking_trial_dir):
+        os.makedirs(turntaking_trial_dir)
+
+    if not os.path.exists(turntaking_metadata_dir):
+        os.makedirs(turntaking_metadata_dir)
+
+    index = 0
+    world_bounds = collections.OrderedDict()
+    world_bounds["xrange"] = collections.OrderedDict()
+    world_bounds["yrange"] = collections.OrderedDict()
+    # bottom left corner in continuous space
+    world_bounds["xrange"]["lb"] = 0.05 * VIEWPORT_W / SCALE
+    world_bounds["yrange"]["lb"] = 0.05 * VIEWPORT_H / SCALE
+    world_bounds["xrange"]["ub"] = 0.75 * VIEWPORT_W / SCALE
+    world_bounds["yrange"]["ub"] = 0.9 * VIEWPORT_H / SCALE
+
+    for algo_condition in ["disamb", "control"]:
+        for i in range(3):
+            trial_info_dict = collections.OrderedDict()
+            trial_info_dict["world_bounds"] = world_bounds
+            start_location = random.choice(START_LOCATIONS)
+            num_goals = random.choice(NUM_GOALS)
+            start_mode = random.choice(START_MODES)
+
+            mdp_env_params = _create_mdp_env_params_dict(start_location, num_goals)
+            # _init_goal_pfields_obstacles(mdp_env_params['dynamic_obs_specs'])
+            mdp_env_params["cell_size"] = collections.OrderedDict()
+
+            # create mdp list here. Select start positoin from valid stats.
+            # generate continuous world bounds from width and height and cell size, and offset info
+            mdp_env_params["cell_size"]["x"] = (
+                world_bounds["xrange"]["ub"] - world_bounds["xrange"]["lb"]
+            ) / mdp_env_params["grid_width"]
+            mdp_env_params["cell_size"]["y"] = (
+                world_bounds["yrange"]["ub"] - world_bounds["yrange"]["lb"]
+            ) / mdp_env_params["grid_height"]
+            trial_info_dict["all_mdp_env_params"] = mdp_env_params
+
+            mdp_list = create_mdp_list(trial_info_dict["all_mdp_env_params"])
+            trial_info_dict["mdp_list"] = mdp_list
+            trial_info_dict["num_goals"] = random.choice(range(3, 5))
+            trial_info_dict["is_visualize_grid"] = False
+
+            discrete_robot_state = _create_start_state(start_location, start_mode)
+            # discrete_robot_state = (0, 0, 0, 1)  # bottom left
+            robot_position, robot_orientation, start_mode = _convert_discrete_state_to_continuous_pose(
+                discrete_robot_state, mdp_env_params["cell_size"], world_bounds
+            )
+            trial_info_dict["robot_position"] = robot_position
+            trial_info_dict["robot_orientation"] = robot_orientation
+            trial_info_dict["start_mode"] = start_mode
+            trial_info_dict["robot_type"] = CartesianRobotType.SE2
+            trial_info_dict["mode_set_type"] = ModeSetType.OneD
+            trial_info_dict["mode_transition_type"] = ModeTransitionType.Forward_Backward
+            # generate continuous obstacle bounds based
+            trial_info_dict["obstacles"] = []
+            for o in mdp_env_params["original_mdp_obstacles"]:
+                obs = collections.OrderedDict()
+                obs["bottom_left"] = (
+                    o[0] * mdp_env_params["cell_size"]["x"] + world_bounds["xrange"]["lb"],
+                    o[1] * mdp_env_params["cell_size"]["y"] + world_bounds["yrange"]["lb"],
+                )
+                obs["top_right"] = (
+                    (o[0] + 1) * mdp_env_params["cell_size"]["x"] + world_bounds["xrange"]["lb"],
+                    (o[1] + 1) * mdp_env_params["cell_size"]["y"] + world_bounds["yrange"]["lb"],
+                )
+                trial_info_dict["obstacles"].append(obs)
+
+            trial_info_dict["goal_poses"] = _generate_continuous_goal_poses(
+                mdp_env_params["all_goals"], mdp_env_params["cell_size"], trial_info_dict["world_bounds"]
+            )
+            trial_info_dict["algo_condition"] = algo_condition
+            trial_info_dict["spatial_window_half_length"] = 3
+            trial_info_dict["kl_coeff"] = 0.9
+            trial_info_dict["dist_coeff"] = 0.1
+            with open(os.path.join(turntaking_trial_dir, str(index) + ".pkl"), "wb") as fp:
+                pickle.dump(trial_info_dict, fp)
+
+            index += 1
+            print("Trial Index ", index)
+            print("               ")
+
+
 def generate_training_trials(args):
     training_trial_dir = args.training_trial_dir
     training_metadata_dir = args.training_metadata_dir
@@ -267,7 +353,7 @@ def generate_training_trials(args):
         os.makedirs(training_metadata_dir)
 
     index = 0
-    algo_condition_to_pkl_index = collections.defaultdict(list)
+    # algo_condition_to_pkl_index = collections.defaultdict(list)
     world_bounds = collections.OrderedDict()
     world_bounds["xrange"] = collections.OrderedDict()
     world_bounds["yrange"] = collections.OrderedDict()
@@ -372,6 +458,18 @@ if __name__ == "__main__":
         help="The directory where metadata of trials will be stored",
     )
     parser.add_argument(
+        "--turntaking_trial_dir",
+        dest="turntaking_trial_dir",
+        default=os.path.join(os.getcwd(), "trial_folders", "turntaking_trial_dir"),
+        help="The directory where turn taking practice trials will be stored are",
+    )
+    parser.add_argument(
+        "--turntaking_metadata_dir",
+        dest="turntaking_metadata_dir",
+        default=os.path.join(os.getcwd(), "trial_folders", "turntaking_metadata_dir"),
+        help="The directory where metadata of turn taking trials will be stored",
+    )
+    parser.add_argument(
         "--num_reps_per_condition",
         action="store",
         type=int,
@@ -380,5 +478,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    # generate_experiment_trials(args)
-    generate_training_trials(args)
+    generate_experiment_trials(args)
+    # generate_training_trials(args)
+    generate_turn_taking_practice_trials(args)

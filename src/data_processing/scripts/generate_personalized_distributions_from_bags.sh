@@ -129,7 +129,7 @@ python p_phm_given_phi_distribution_preprocessing.py -id ${subject_id}
 
 # # P(Um|a)
 # echo "Generating p(um|a)"
-# python p_pm_given_a_distribution_preprocessing.py -id ${subject_id}
+# python p_um_given_a_distribution_preprocessing.py -id ${subject_id}
 
 # P(Ui|a)
 echo "Generating p(phi|a)"
