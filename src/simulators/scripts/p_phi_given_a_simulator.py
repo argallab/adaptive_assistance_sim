@@ -15,7 +15,7 @@ class PPhiGivenASim(object):
     def __init__(self, iterations=1, blocks=1):
 
         # initialization
-        rospy.init_node("p_ui_given_a_simulator")
+        rospy.init_node("p_phi_given_a_simulator")
         rospy.on_shutdown(self.shutdown_hook)
         self.iterations = int(iterations)
         self.blocks = int(blocks)
