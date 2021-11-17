@@ -5,7 +5,6 @@
 	<arg name="iteration" default="5" doc="Number of times to display each command"/>
 
 	<arg name="SNP" default="true" doc="Set to true if using sip/puff to control arm."/>
-	<arg name="JOINT" default="true" doc="Set to true if joint velocity control"/>
 	<arg name="snp_training" default="1" doc="Set to true if snp is used for training"/>
 
 	<node pkg="simulators" output="screen" type="sip_puff_training_simulator.py" name="sip_puff_training_simulator" args="$(arg iteration)"/>
@@ -16,10 +15,7 @@
 
 	<include file="$(find teleop_nodes)/launch/teleop_nodes.launch">
 		<arg name="SNP" value="$(arg SNP)"/>
-		<arg name="JOINT" value="$(arg JOINT)"/>
 		<arg name="snp_training" value="$(arg snp_training)"/>
-		<arg name="robot_dim" value="3"/>
-		<arg name="finger_dim" value="0"/>
 	</include>
 
 

@@ -93,6 +93,9 @@ class ContinuousWorldSE2Env(object):
 
     def _transform_continuous_robot_pose_to_discrete_state(self):
         data_index = self.continuous_kd_tree.query(self.robot.get_position())[1]
+        if type(data_index) == np.ndarray:
+            data_index = data_index[0]
+
         nearest_continuous_position = self.continuous_kd_tree.data[data_index, :]
         mdp_discrete_position = self.continuous_position_to_loc_coord[tuple(nearest_continuous_position)]
         mdp_discrete_orientation = self._continuous_orientation_to_discrete_orientation()
@@ -108,14 +111,25 @@ class ContinuousWorldSE2Env(object):
         return mdp_discrete_state
 
     def _render_bounds(self):
+        # if self.information_text.lower() == "autonomy":
+        #     bound_color = (1.0, 0.0, 0.0)
+        # elif self.information_text.lower() == "waiting" or self.information_text.lower() == "your turn":
+        #     bound_color = (0.0, 0.0, 1.0)
+        # else:
+        #     bound_color = (0.0, 0.0, 1.0)
+
+        blue = np.array([0.0, 0.0, 1.0])
+        red = np.array([1.0, 0.0, 0.0])
+        bound_color = (1 - self.border_blend_val) * blue + self.border_blend_val * red
+        bound_color = tuple(bound_color)
         x_lb = self.world_bounds["xrange"]["lb"]
         x_ub = self.world_bounds["xrange"]["ub"]
         y_lb = self.world_bounds["yrange"]["lb"]
         y_ub = self.world_bounds["yrange"]["ub"]
-        self.viewer.draw_line((x_lb, y_lb), (x_ub, y_lb), linewidth=3.0)
-        self.viewer.draw_line((x_ub, y_lb), (x_ub, y_ub), linewidth=3.0)
-        self.viewer.draw_line((x_ub, y_ub), (x_lb, y_ub), linewidth=3.0)
-        self.viewer.draw_line((x_lb, y_ub), (x_lb, y_lb), linewidth=3.0)
+        self.viewer.draw_line((x_lb, y_lb), (x_ub, y_lb), linewidth=8.0, color=bound_color)
+        self.viewer.draw_line((x_ub, y_lb), (x_ub, y_ub), linewidth=8.0, color=bound_color)
+        self.viewer.draw_line((x_ub, y_ub), (x_lb, y_ub), linewidth=8.0, color=bound_color)
+        self.viewer.draw_line((x_lb, y_ub), (x_lb, y_lb), linewidth=8.0, color=bound_color)
 
     def _render_grid_lines(self):
         if self.is_visualize_grid:
@@ -363,6 +377,7 @@ class ContinuousWorldSE2Env(object):
         self.DIMENSIONS = []
         self.DIMENSION_INDICES = []
         self.information_text = ""
+        self.border_blend_val = 0.0
 
     def initialize(self):
         self.start_session = self.env_params["start"]
@@ -449,6 +464,7 @@ class ContinuousWorldSE2Env(object):
         self.robot_type = self.env_params["robot_type"]
         self.mode_set_type = self.env_params["mode_set_type"]
         self.mode_transition_type = self.env_params["mode_transition_type"]
+        self.border_blend_val = 0.0
 
         self.robot = RobotSE2(
             self.world,
@@ -472,6 +488,10 @@ class ContinuousWorldSE2Env(object):
             rospy.Service("/sim_env/get_prob_a_s_all_g", PASAllG, self.get_prob_a_s_all_g)
             rospy.Service("/sim_env/switch_mode_in_robot", SwitchModeSrv, self.switch_mode_in_robot)
             self.service_initialized = True
+
+    def set_border_blend_index(self, blend_val):
+        self.border_blend_val = blend_val
+        # print(self.border_blend_val)
 
     def set_information_text(self, information_text):
         self.information_text = information_text

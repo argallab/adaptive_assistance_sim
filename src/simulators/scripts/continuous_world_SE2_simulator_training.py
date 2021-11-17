@@ -214,7 +214,7 @@ class Simulator(object):
                     time.sleep(2)
                     self.env.reset()
                     self.env.render()
-                    self.env.set_information_text("Waiting....")
+                    self.env.set_information_text("")
                     self.trial_start_time = time.time()
                     self.trial_marker_pub.publish("start")
                     self.trial_index_pub.publish(trial_info_filename_index)
@@ -267,9 +267,8 @@ class Simulator(object):
                     robot_continuous_orientation = self.env.get_robot_orientation()
                     self.compute_velocity_request.current_pos = robot_continuous_position
                     self.compute_velocity_request.current_orientation = robot_continuous_orientation
-                    self.compute_velocity_request.pfield_id = (
-                        inferred_goal_id_str  # get pfeild vel corresponding to inferred goal
-                    )
+                    # get pfeild vel corresponding to inferred goal
+                    self.compute_velocity_request.pfield_id = (inferred_goal_id_str)
                     vel_response = self.compute_velocity_srv(self.compute_velocity_request)
                     autonomy_vel = list(vel_response.velocity_final)
                     inferred_goal_pose = self.env_params["goal_poses"][inferred_goal_id]
@@ -294,7 +293,7 @@ class Simulator(object):
                 self.input_action["full_control_signal"] = blend_vel
                 # print(is_mode_switch)
 
-                (robot_continuous_position, robot_continuous_orientation, robot_discrete_state, is_done,) = self.env.step(
+                (robot_continuous_position, robot_continuous_orientation, robot_linear_velocity, robot_angular_velocity, robot_discrete_state, is_done,) = self.env.step(
                     self.input_action
                 )
 
@@ -303,14 +302,26 @@ class Simulator(object):
                     break
 
                 self.env.render()
+                # # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
+                # if tuple(robot_discrete_state[:-1]) in self.env_params["all_mdp_env_params"]["all_goals"]:
+                #     index_goal = self.env_params["all_mdp_env_params"]["all_goals"].index(tuple(robot_discrete_state[:-1]))
+                #     goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
+                #     if (
+                #         np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0
+                #     ):  # determine threshold
+                #         is_done = True
+                
                 # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
-                if tuple(robot_discrete_state[:-1]) in self.env_params["all_mdp_env_params"]["all_goals"]:
-                    index_goal = self.env_params["all_mdp_env_params"]["all_goals"].index(tuple(robot_discrete_state[:-1]))
-                    goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
-                    if (
-                        np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0
-                    ):  # determine threshold
-                        is_done = True
+                for g in self.env_params['goal_poses']:
+                    goal_continuous_position = g[:-1]
+                    goal_continuous_orientation = g[-1]
+                    if (np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0):
+                        abs_diff_orientation = abs(goal_continuous_orientation - robot_continuous_orientation)
+                        if abs_diff_orientation > PI:
+                            abs_diff_orientation = 2*PI - abs_diff_orientation
+                        if abs_diff_orientation < 0.2:
+                            is_done=True
+                            break
 
             r.sleep()
 
@@ -352,7 +363,7 @@ class Simulator(object):
         self.env.update_params(self.env_params)
         self.env.reset()
         self.env.render()
-        self.env.set_information_text("Waiting....")
+        self.env.set_information_text("")
 
 
         #reset inference node

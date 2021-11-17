@@ -142,18 +142,19 @@ class Simulator(object):
         )
 
         # alpha from confidence function parameters
-        self.confidence_threshold = 1.05 / len(self.env_params["goal_poses"])
-        self.confidence_max = 1.14 / len(self.env_params["goal_poses"])
+        self.confidence_threshold = 1.1 / len(self.env_params["goal_poses"])
+        self.confidence_max = 1.2 / len(self.env_params["goal_poses"])
         self.alpha_max = 0.8
         if self.confidence_max != self.confidence_threshold:
             self.confidence_slope = float(self.alpha_max) / (self.confidence_max - self.confidence_threshold)
         else:
             self.confidence_slope = -1.0
 
-        self.ENTROPY_THRESHOLD = 0.7
+        self.ENTROPY_THRESHOLD = 0.65
 
         # instantiate the environement
         self.env_params["start"] = False
+        self.human_turn_start_index = 0
         self.env = ContinuousWorldSE2Env(self.env_params)
         self.env.initialize()
         self.env.initialize_viewer()
@@ -197,8 +198,9 @@ class Simulator(object):
         self.is_autonomy_turn = False
         self.has_human_initiated = False
         self.DISAMB_ACTIVATE_THRESHOLD = 100
+        self.HUMAN_TURN_LIMIT = 200
         self.BLENDING_THRESHOLD = 15  # distance within which thje blending kicks in
-
+        self.human_turn_start_time = time.time()
         while not rospy.is_shutdown():
             if not self.start:
                 self.start = self.env.start_countdown()
@@ -218,6 +220,10 @@ class Simulator(object):
                     if is_done:
                         print ("Move to NEXT TRIAL")
                         self.trial_marker_pub.publish("end")
+                        # unfreeze belief update
+                        self.freeze_update_request.data = True
+                        self.freeze_update_srv(self.freeze_update_request)
+
                         self.env.render_clear("Loading next trial ...")
                         time.sleep(5.0)  # sleep before the next trial happens
                         self.trial_index += 1
@@ -292,6 +298,9 @@ class Simulator(object):
                         self.alpha = 0.0  # no autonomy, purely human vel
                         self.inferred_goal_pub.publish('None')
                     
+                    if time.time() - self.human_turn_start_time < 1.0:
+                        self.alpha = 0.0
+                    
                     self.autonomy_vel_msg.data = list(autonomy_vel)
                     # blend autonomy velocity by combining it with user vel.
                     blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
@@ -305,16 +314,27 @@ class Simulator(object):
                             # zero human vel and human has already issued some non-zero velocities during their turn,
                             # in which case keep track of inactivity time
                             self.autonomy_activate_ctr += 1
+                            self.human_turn_start_index += 1
+                            if self.human_turn_start_index >= self.HUMAN_TURN_LIMIT:
+                                self.human_turn_start_index = self.HUMAN_TURN_LIMIT
+                            
                     else:  # if non-zero human velocity
                         if not self.has_human_initiated:
                             print ("HUMAN INITIATED DURING THEIR TURN")
                             self.env.set_information_text("Your TURN")
                             self.has_human_initiated = True
                             self.has_human_initiated_pub.publish('initiated')
+                            self.human_turn_start_time = time.time()
+                            self.human_turn_start_index = 0
+                            self.env.set_border_blend_index(0.0)
                             # unfreeze belief update
                             self.freeze_update_request.data = False
                             self.freeze_update_srv(self.freeze_update_request)
                             self.freeze_update_pub.publish("Unfrozen")
+                        else:
+                            self.human_turn_start_index += 1
+                            if self.human_turn_start_index >= self.HUMAN_TURN_LIMIT:
+                                self.human_turn_start_index = self.HUMAN_TURN_LIMIT
 
                         # reset the activate ctr because human is providing non zero commands.
                         self.autonomy_activate_ctr = 0
@@ -347,6 +367,7 @@ class Simulator(object):
                         self.trial_start_time = time.time()
                         is_done = False
 
+                    self.env.set_border_blend_index(self.human_turn_start_index/float(self.HUMAN_TURN_LIMIT))
                     (
                         robot_continuous_position,
                         robot_continuous_orientation,
@@ -368,7 +389,8 @@ class Simulator(object):
                         if self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD:
                             if normalized_h_of_p_g_given_phm > self.ENTROPY_THRESHOLD:
                                 print ("ACTIVATING DISAMB")
-                                self.env.set_information_text("DISAMB")
+                                self.env.set_information_text("AUTONOMY")
+                                self.env.set_border_blend_index(1.0)
                                 self.turn_indicator_pub.publish('autonomy-disamb')
 
                                 # Freeze belief update during autonomy's turn up until human activates again
@@ -419,12 +441,13 @@ class Simulator(object):
                                 # switch current mode to disamb mode. #if disamb mdoe different from current update the message
                                 disamb_state_mode_index = max_disamb_state[-1]
                                 if disamb_state_mode_index != current_mode:
-                                    self.env.set_information_text("Disamb - MODE SWITCHED")
+                                    self.env.set_information_text("AUTONOMY")
                                 self.env.set_mode_in_robot(disamb_state_mode_index)
                             else:
                                 # human has stopped. autonomy' turn. Upon waiting, the confidence is still high. Therefore, move the robot to current confident goal.
                                 print ("ACTIVATING AUTONOMY")
                                 self.env.set_information_text("AUTONOMY")
+                                self.env.set_border_blend_index(1.0)
                                 self.turn_indicator_pub.publish('autonomy-pfield')
 
                                 # Freeze belief update during autonomy's turn up until human activates again
@@ -457,6 +480,7 @@ class Simulator(object):
                         # check if ctr is past the threshold
                         if self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD:
                             print ("ACTIVATING AUTONOMY")
+                            self.env.set_border_blend_index(1.0)
                             self.env.set_information_text("AUTONOMY")
                             self.turn_indicator_pub.publish('autonomy-control')
                             # Freeze belief update during autonomy's turn up until human activates again
@@ -500,17 +524,7 @@ class Simulator(object):
                             if abs_diff_orientation < 0.2 and self.has_human_initiated:
                                 is_done=True
                                 break
-                        
-                    # if tuple(robot_discrete_state[:-1]) in self.env_params["all_mdp_env_params"]["all_goals"]:
-                    #     index_goal = self.env_params["all_mdp_env_params"]["all_goals"].index(
-                    #         tuple(robot_discrete_state[:-1])
-                    #     )
-                    #     goal_continuous_position = self.env_params["goal_poses"][index_goal][:-1]
-                    #     if (
-                    #         np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position))
-                    #         < 1.0
-                    #     ):  # determine threshold
-                    #         is_done = True
+                    
                 else:
                     # what to do during autonomy turn
 
@@ -546,6 +560,8 @@ class Simulator(object):
                             self.is_autonomy_turn = False
                             # reset human initiator flag for next turn.
                             self.has_human_initiated = False
+                            self.human_turn_start_index = 0
+                            self.env.set_border_blend_index(0.0)
                             self.turn_indicator_pub.publish('human')
                             self.env.set_information_text("Waiting...")
                             self.autonomy_activate_ctr = 0
@@ -575,6 +591,8 @@ class Simulator(object):
                             self.is_autonomy_turn = False
                             # reset human initiator flag for next turn.
                             self.has_human_initiated = False
+                            self.human_turn_start_index = 0
+                            self.env.set_border_blend_index(0.0)
                             self.turn_indicator_pub.publish('human')
                             self.env.set_information_text("Waiting...")
                             self.autonomy_activate_ctr = 0
@@ -667,20 +685,22 @@ class Simulator(object):
             pfield_id="generic",
         )
 
-        self.confidence_threshold = 1.05 / len(self.env_params["goal_poses"])
-        self.confidence_max = 1.14 / len(self.env_params["goal_poses"])
+        self.human_turn_start_index = 0
+        self.confidence_threshold = 1.1 / len(self.env_params["goal_poses"])
+        self.confidence_max = 1.2 / len(self.env_params["goal_poses"])
         self.alpha_max = 0.8
         if self.confidence_max != self.confidence_threshold:
             self.confidence_slope = float(self.alpha_max) / (self.confidence_max - self.confidence_threshold)
         else:
             self.confidence_slope = -1.0
 
-        self.ENTROPY_THRESHOLD = 0.7
+        self.ENTROPY_THRESHOLD = 0.65
 
         # reinit the environement
         self.env_params["start"] = False
         self.env.update_params(self.env_params)
         self.env.reset()
+        self.env.set_border_blend_index(0.0)
         self.env.render()
         self.env.set_information_text("Waiting....")
 

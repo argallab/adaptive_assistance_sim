@@ -300,7 +300,7 @@ def generate_turn_taking_practice_trials(args):
 
             mdp_list = create_mdp_list(trial_info_dict["all_mdp_env_params"])
             trial_info_dict["mdp_list"] = mdp_list
-            trial_info_dict["num_goals"] = random.choice(range(3, 5))
+            trial_info_dict["num_goals"] = num_goals
             trial_info_dict["is_visualize_grid"] = False
 
             discrete_robot_state = _create_start_state(start_location, start_mode)
@@ -478,6 +478,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    generate_experiment_trials(args)
+    # generate_experiment_trials(args)
     # generate_training_trials(args)
     generate_turn_taking_practice_trials(args)

@@ -64,7 +64,7 @@ class GoalInference(object):
         self.delayed_decay_counter = 0
         self.decay_counter = 0
         self.decay_counter_max_value = 1000
-        self.decay_scale_factor = 0.002  # lower this value to slow down the decay
+        self.decay_scale_factor = 0.008  # lower this value to slow down the decay
 
         # init all distributions from file
         if os.path.exists(os.path.join(self.distribution_directory_path, str(self.subject_id) + "_p_phi_given_a.pkl")):
@@ -94,41 +94,32 @@ class GoalInference(object):
         # print("In infer and correct")
         phm = req.phm
         response = GoalInferenceInfoResponse()
-        p_a_s_all_g_response = self.get_prob_a_s_all_g()
-        # since TASK_LEVEL_ACTIONS is OrderedDict this is list will always be in the same order
-        if p_a_s_all_g_response.status:
-            p_a_s_all_g = p_a_s_all_g_response.p_a_s_all_g
-            current_mode = p_a_s_all_g_response.current_mode  # [1,2,3]
+        if not self.is_freeze_update:
+            p_a_s_all_g_response = self.get_prob_a_s_all_g()
+            # since TASK_LEVEL_ACTIONS is OrderedDict this is list will always be in the same order
+            if p_a_s_all_g_response.status:
+                p_a_s_all_g = p_a_s_all_g_response.p_a_s_all_g
+                current_mode = p_a_s_all_g_response.current_mode  # [1,2,3]
 
-            # update p_a_s_all_g dict
-            for g in range(len(p_a_s_all_g)):  # number of goals
-                self.P_A_S_ALL_G_DICT[g] = collections.OrderedDict()
-                for i, task_level_action in enumerate(TASK_LEVEL_ACTIONS):
-                    self.P_A_S_ALL_G_DICT[g][task_level_action] = p_a_s_all_g[g].p_a_s_g[i]
+                # update p_a_s_all_g dict
+                for g in range(len(p_a_s_all_g)):  # number of goals
+                    self.P_A_S_ALL_G_DICT[g] = collections.OrderedDict()
+                    for i, task_level_action in enumerate(TASK_LEVEL_ACTIONS):
+                        self.P_A_S_ALL_G_DICT[g][task_level_action] = p_a_s_all_g[g].p_a_s_g[i]
 
-            # get optimal action for all goals for current state as a list ordered by goal index
-            self.OPTIMAL_ACTION_FOR_S_G = p_a_s_all_g_response.optimal_action_s_g
-            assert len(self.OPTIMAL_ACTION_FOR_S_G) == self.NUM_GOALS
+                # get optimal action for all goals for current state as a list ordered by goal index
+                self.OPTIMAL_ACTION_FOR_S_G = p_a_s_all_g_response.optimal_action_s_g
+                assert len(self.OPTIMAL_ACTION_FOR_S_G) == self.NUM_GOALS
 
-            # do Bayesian inference and update belief over goals.
-            self._compute_p_g_given_phm(phm, current_mode)
-            # # get inferred goal and optimal task level and interface level action corresponding to max.
-            # g_inferred, a_inferred, ph_inferred, p_g_given_um_vector = self._compute_g_a_ph_inferred()
+                # do Bayesian inference and update belief over goals.
+                self._compute_p_g_given_phm(phm, current_mode)
+                response.status = True
 
-            # # compute netropy
-            # normalized_h_of_p_g_given_phm = self._compute_entropy_of_p_g_given_phm()
-            # # apply assistance by checking entropy (get phm_modified)
-            # ph_modified, is_corrected_or_filtered, is_ph_inferred_equals_phm = self._modify_or_pass_phm(
-            #     phm, ph_inferred, normalized_h_of_p_g_given_phm
-            # )
-
-            # response.ph_modified = ph_modified
-            # response.is_corrected_or_filtered = is_corrected_or_filtered
-            response.status = True
-
-            # populate response
-            self.belief_info_msg.p_g_given_phm = list(self.P_G_GIVEN_PHM.values())
-            self.belief_info_pub.publish(self.belief_info_msg)
+                # populate response
+                self.belief_info_msg.p_g_given_phm = list(self.P_G_GIVEN_PHM.values())
+                self.belief_info_pub.publish(self.belief_info_msg)
+            else:
+                response.status = True
         else:
             response.status = True
 

@@ -46,7 +46,7 @@ class SimPFieldsMultiple(object):
         rospy.Service("/sim_pfields_multiple/compute_velocity", ComputeVelocity, self.compute_velocity)
 
     def populate_environment(self, req):
-        print("In POPULATE ENVIRONMENT service")
+        # print("In POPULATE ENVIRONMENT service")
         pfield_id = req.pfield_id
         num_obstacles = req.num_obstacles
         self.obs_descs_dict[pfield_id] = req.obs_descs  # List of CuboidObss
@@ -74,7 +74,7 @@ class SimPFieldsMultiple(object):
         return response
 
     def update_ds(self, req):
-        print("In UPDATE DS service")
+        # print("In UPDATE DS service")
         pfield_id = req.pfield_id
         attractor_position = req.attractor_position
         attractor_orientation = req.attractor_orientation

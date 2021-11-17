@@ -46,3 +46,42 @@ Out of 24 scenes. Create "hard scenes" where it is hard to intent inference.
 Hardness comes from:
 
 Distance, all goals on one side. 
+
+
+phi given a
+roslaunch simulators p_phi_given_a_sim.launch subject_id:=andrewtest save:=true iteration:=1 block:=6
+cd src/data_processing/scripts ./generate_personalized_p_phi_given_a.sh andrewtest
+
+phm given phi
+
+a) Free exploration (with feedback)
+roslaunch simulators sip_puff_training_simulator.launch iteration:=5
+b) Prompted training (with feedback)
+roslaunch simulators sip_puff_training_simulator.launch iteration:=5
+In rqt_reconfigure select prompted
+press 's' to start prompted training.
+
+Prompted testing
+roslaunch simulators p_phm_given_phi_sim.launch subject_id:=andrewtest save:=true
+cd src/data_processing/scripts ./generate_personalized_distributions_from_bags.sh andrewtest
+
+
+
+training with just teleop
+roslaunch simulators continuous_world_SE2_sim_training.launch subject_id:=train algo_condition_block:=teleop
+
+training with blending
+roslaunch simulators continuous_world_SE2_sim_training.launch subject_id:=train algo_condition_block:=blending 
+
+training with turn taking + blending
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=train algo_condition_block:=all block_id:=0 training:=1 save:=false
+
+
+
+testing
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=control block_id:=1 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=disamb block_id:=2 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=control block_id:=3 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=disamb block_id:=1 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=disamb block_id:=3 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=control block_id:=2 save:=true

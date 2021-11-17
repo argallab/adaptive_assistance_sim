@@ -442,7 +442,7 @@ class RobotSE2(object):
         for acd, mcd in zip(_allowed_control_dimensions, _mappable_control_dimensions):
             true_velocity[acd] = velocity_action[mcd]
 
-        true_velocity[-1] = true_velocity[-1] * -1.0
+        true_velocity[-1] = true_velocity[-1] * -0.8
 
         return true_velocity
 
