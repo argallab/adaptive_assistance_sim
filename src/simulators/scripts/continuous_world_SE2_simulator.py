@@ -32,6 +32,7 @@ from adaptive_assistance_sim_utils import *
 
 NUM_ORIENTATIONS = 8
 
+
 class Simulator(object):
     def __init__(self, subject_id, algo_condition_block, block_id, training):
         super(Simulator, self).__init__()
@@ -41,7 +42,6 @@ class Simulator(object):
         self.called_shutdown = False
         self._initialize_publishers()
 
-        
         self.dim = 3
         user_vel = InterfaceSignal()
 
@@ -66,7 +66,7 @@ class Simulator(object):
         self.subject_id = subject_id
         self.algo_condition_block = algo_condition_block  # pass these things from launch file
         self.block_id = block_id
-        
+
         self.testing_block_filename = (
             self.subject_id
             + "_"
@@ -214,7 +214,7 @@ class Simulator(object):
                     self.trial_start_time = time.time()
                     self.trial_marker_pub.publish("start")
                     self.trial_index_pub.publish(trial_info_filename_index)
-                    self.turn_indicator_pub.publish('human')
+                    self.turn_indicator_pub.publish("human")
                     first_trial = False
                 else:
                     if is_done:
@@ -247,16 +247,16 @@ class Simulator(object):
                         self.trial_start_time = time.time()
                         self.trial_marker_pub.publish("start")
                         self.trial_index_pub.publish(trial_info_filename_index)
-                        self.turn_indicator_pub.publish('human')
+                        self.turn_indicator_pub.publish("human")
                         is_done = False
                         self.is_restart = False
-                
+
                 human_vel = self.env.get_mode_conditioned_velocity(
                     self.input_action["human"].interface_signal
                 )  # robot_dim
                 is_mode_switch = self.input_action["human"].mode_switch
                 self.human_vel_msg.data = list(human_vel)
-                
+
                 # if during human turn
                 if not self.is_autonomy_turn:
                     # get current belief. and entropy of belief. compute argmax g
@@ -269,7 +269,6 @@ class Simulator(object):
                         argmax_goal_id_str,
                     ) = self._get_most_confident_goal()
                     # get human control action in full robot control space
-                    
 
                     # autonomy inferred a valid goal
                     if inferred_goal_id_str is not None and inferred_goal_prob is not None:
@@ -296,11 +295,11 @@ class Simulator(object):
                         # no inferred goal due to high entropy of goal belief, hence autonomy vel is zero
                         autonomy_vel = list([0.0] * np.array(human_vel).shape[0])  # 0.0 autonomy vel
                         self.alpha = 0.0  # no autonomy, purely human vel
-                        self.inferred_goal_pub.publish('None')
-                    
+                        self.inferred_goal_pub.publish("None")
+
                     if time.time() - self.human_turn_start_time < 1.0:
                         self.alpha = 0.0
-                    
+
                     self.autonomy_vel_msg.data = list(autonomy_vel)
                     # blend autonomy velocity by combining it with user vel.
                     blend_vel = self._blend_velocities(np.array(human_vel), np.array(autonomy_vel))
@@ -317,13 +316,13 @@ class Simulator(object):
                             self.human_turn_start_index += 1
                             if self.human_turn_start_index >= self.HUMAN_TURN_LIMIT:
                                 self.human_turn_start_index = self.HUMAN_TURN_LIMIT
-                            
+
                     else:  # if non-zero human velocity
                         if not self.has_human_initiated:
                             print ("HUMAN INITIATED DURING THEIR TURN")
                             self.env.set_information_text("Your TURN")
                             self.has_human_initiated = True
-                            self.has_human_initiated_pub.publish('initiated')
+                            self.has_human_initiated_pub.publish("initiated")
                             self.human_turn_start_time = time.time()
                             self.human_turn_start_index = 0
                             self.env.set_border_blend_index(0.0)
@@ -367,7 +366,7 @@ class Simulator(object):
                         self.trial_start_time = time.time()
                         is_done = False
 
-                    self.env.set_border_blend_index(self.human_turn_start_index/float(self.HUMAN_TURN_LIMIT))
+                    self.env.set_border_blend_index(self.human_turn_start_index / float(self.HUMAN_TURN_LIMIT))
                     (
                         robot_continuous_position,
                         robot_continuous_orientation,
@@ -376,7 +375,7 @@ class Simulator(object):
                         robot_discrete_state,
                         is_done,
                     ) = self.env.step(self.input_action)
-                    
+
                     if self.terminate:
                         self.shutdown_hook("Session terminated")
                         break
@@ -391,18 +390,18 @@ class Simulator(object):
                                 print ("ACTIVATING DISAMB")
                                 self.env.set_information_text("AUTONOMY")
                                 self.env.set_border_blend_index(1.0)
-                                self.turn_indicator_pub.publish('autonomy-disamb')
+                                self.turn_indicator_pub.publish("autonomy-disamb")
 
                                 # Freeze belief update during autonomy's turn up until human activates again
                                 self.freeze_update_request.data = True
                                 self.freeze_update_srv(self.freeze_update_request)
-                                self.freeze_update_pub.publish('Frozen')
+                                self.freeze_update_pub.publish("Frozen")
 
                                 # get current discrete state
                                 robot_discrete_state = self.env.get_robot_current_discrete_state()  # tuple (x,y,t,m)
                                 current_mode = robot_discrete_state[-1]
                                 belief_at_disamb_time = self.p_g_given_phm
-                                self.function_timer_pub.publish('before')
+                                self.function_timer_pub.publish("before")
                                 max_disamb_state = self.disamb_algo.get_local_disamb_state(
                                     self.p_g_given_phm, robot_discrete_state
                                 )
@@ -419,13 +418,17 @@ class Simulator(object):
                                 ) = self._convert_discrete_state_to_continuous_pose(
                                     max_disamb_state, mdp_env_params["cell_size"], world_bounds
                                 )
-                                
-                                self.autonomy_turn_target_msg.robot_continuous_position = list(max_disamb_continuous_position)
-                                self.autonomy_turn_target_msg.robot_continuous_orientation = max_disamb_continuous_orientation
+
+                                self.autonomy_turn_target_msg.robot_continuous_position = list(
+                                    max_disamb_continuous_position
+                                )
+                                self.autonomy_turn_target_msg.robot_continuous_orientation = (
+                                    max_disamb_continuous_orientation
+                                )
                                 self.disamb_discrete_state_pub.publish(self.disamb_discrete_state_msg)
                                 self.autonomy_turn_target_pub.publish(self.autonomy_turn_target_msg)
 
-                                self.function_timer_pub.publish('after')
+                                self.function_timer_pub.publish("after")
                                 # update disamb pfield attractor
                                 self.update_attractor_ds_request.pfield_id = "disamb"
                                 self.update_attractor_ds_request.attractor_position = list(
@@ -448,27 +451,31 @@ class Simulator(object):
                                 print ("ACTIVATING AUTONOMY")
                                 self.env.set_information_text("AUTONOMY")
                                 self.env.set_border_blend_index(1.0)
-                                self.turn_indicator_pub.publish('autonomy-pfield')
+                                self.turn_indicator_pub.publish("autonomy-pfield")
 
                                 # Freeze belief update during autonomy's turn up until human activates again
                                 self.freeze_update_request.data = True
                                 self.freeze_update_srv(self.freeze_update_request)
-                                self.freeze_update_pub.publish('frozen')
+                                self.freeze_update_pub.publish("frozen")
                                 belief_at_disamb_time = self.p_g_given_phm
                                 # if so, get current inferred goal pose
                                 inferred_goal_pose = self.env_params["goal_poses"][inferred_goal_id]
                                 inferred_goal_position = inferred_goal_pose[:-1]
                                 # connect the line joining current position and inferref goal position.
-                                self.function_timer_pub.publish('before')
+                                self.function_timer_pub.publish("before")
                                 target_point = self._get_target_along_line(
                                     robot_continuous_position, inferred_goal_position
                                 )
                                 max_disamb_continuous_position = target_point
 
-                                self.autonomy_turn_target_msg.robot_continuous_position = list(max_disamb_continuous_position)
-                                self.autonomy_turn_target_msg.robot_continuous_orientation = float(inferred_goal_pose[-1])
+                                self.autonomy_turn_target_msg.robot_continuous_position = list(
+                                    max_disamb_continuous_position
+                                )
+                                self.autonomy_turn_target_msg.robot_continuous_orientation = float(
+                                    inferred_goal_pose[-1]
+                                )
                                 self.autonomy_turn_target_pub.publish(self.autonomy_turn_target_msg)
-                                self.function_timer_pub.publish('after')
+                                self.function_timer_pub.publish("after")
 
                                 self.update_attractor_ds_request.pfield_id = "disamb"
                                 self.update_attractor_ds_request.attractor_position = list(target_point)
@@ -482,11 +489,11 @@ class Simulator(object):
                             print ("ACTIVATING AUTONOMY")
                             self.env.set_border_blend_index(1.0)
                             self.env.set_information_text("AUTONOMY")
-                            self.turn_indicator_pub.publish('autonomy-control')
+                            self.turn_indicator_pub.publish("autonomy-control")
                             # Freeze belief update during autonomy's turn up until human activates again
                             self.freeze_update_request.data = True
                             self.freeze_update_srv(self.freeze_update_request)
-                            self.freeze_update_pub.publish('Frozen')
+                            self.freeze_update_pub.publish("Frozen")
 
                             belief_at_disamb_time = self.p_g_given_phm
                             # if so, get current argmax goal pose
@@ -494,17 +501,21 @@ class Simulator(object):
                             argmax_goal_position = argmax_goal_pose[:-1]
                             self.argmax_goal_pub.publish(argmax_goal_id_str)
                             # connect the line joining current position and inferref goal position.
-                            self.function_timer_pub.publish('before')
+                            self.function_timer_pub.publish("before")
                             target_point = self._get_target_along_line(robot_continuous_position, argmax_goal_position)
-                            
+
                             self.autonomy_turn_target_msg.robot_continuous_position = list(target_point)
-                            self.autonomy_turn_target_msg.robot_continuous_orientation = float(robot_continuous_orientation)
+                            self.autonomy_turn_target_msg.robot_continuous_orientation = float(
+                                robot_continuous_orientation
+                            )
                             self.autonomy_turn_target_pub.publish(self.autonomy_turn_target_msg)
-                            
-                            self.function_timer_pub.publish('after')
+
+                            self.function_timer_pub.publish("after")
                             self.update_attractor_ds_request.pfield_id = "generic"
                             self.update_attractor_ds_request.attractor_position = list(target_point)
-                            self.update_attractor_ds_request.attractor_orientation = float(robot_continuous_orientation)
+                            self.update_attractor_ds_request.attractor_orientation = float(
+                                robot_continuous_orientation
+                            )
                             self.update_attractor_ds_srv(self.update_attractor_ds_request)
                             self.is_autonomy_turn = True
 
@@ -514,17 +525,20 @@ class Simulator(object):
                         # update mode if necessary
 
                     # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
-                    for g in self.env_params['goal_poses']:
+                    for g in self.env_params["goal_poses"]:
                         goal_continuous_position = g[:-1]
                         goal_continuous_orientation = g[-1]
-                        if (np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0):
+                        if (
+                            np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position))
+                            < 1.0
+                        ):
                             abs_diff_orientation = abs(goal_continuous_orientation - robot_continuous_orientation)
                             if abs_diff_orientation > PI:
-                                abs_diff_orientation = 2*PI - abs_diff_orientation
+                                abs_diff_orientation = 2 * PI - abs_diff_orientation
                             if abs_diff_orientation < 0.2 and self.has_human_initiated:
-                                is_done=True
+                                is_done = True
                                 break
-                    
+
                 else:
                     # what to do during autonomy turn
 
@@ -540,9 +554,9 @@ class Simulator(object):
                     vel_response = self.compute_velocity_srv(self.compute_velocity_request)
                     autonomy_vel = list(vel_response.velocity_final)
                     self.autonomy_vel_msg.data = list(autonomy_vel)
-                    self.blend_vel_msg.data = list(autonomy_vel) #blend is same as autonomy 
-                    self.alpha_msg.data = 0.0
-                    
+                    self.blend_vel_msg.data = list(autonomy_vel)  # blend is same as autonomy
+                    self.alpha_msg.data = 1.0
+
                     if self.algo_condition == "disamb":
                         if (
                             np.linalg.norm(
@@ -562,7 +576,7 @@ class Simulator(object):
                             self.has_human_initiated = False
                             self.human_turn_start_index = 0
                             self.env.set_border_blend_index(0.0)
-                            self.turn_indicator_pub.publish('human')
+                            self.turn_indicator_pub.publish("human")
                             self.env.set_information_text("Waiting...")
                             self.autonomy_activate_ctr = 0
 
@@ -593,7 +607,7 @@ class Simulator(object):
                             self.has_human_initiated = False
                             self.human_turn_start_index = 0
                             self.env.set_border_blend_index(0.0)
-                            self.turn_indicator_pub.publish('human')
+                            self.turn_indicator_pub.publish("human")
                             self.env.set_information_text("Waiting...")
                             self.autonomy_activate_ctr = 0
 
@@ -612,13 +626,13 @@ class Simulator(object):
 
                     self.env.render()
 
-                #populate discrete state
+                # populate discrete state
                 self.robot_discrete_state.discrete_x = robot_discrete_state[0]
                 self.robot_discrete_state.discrete_y = robot_discrete_state[1]
                 self.robot_discrete_state.discrete_orientation = robot_discrete_state[2]
                 self.robot_discrete_state.discrete_mode = robot_discrete_state[3]
 
-                #populate continuous state
+                # populate continuous state
                 self.robot_state.header.frame_id = "simulator"
                 self.robot_state.header.stamp = rospy.Time.now()
                 self.robot_state.robot_continuous_position = list(robot_continuous_position)
@@ -648,10 +662,10 @@ class Simulator(object):
         self.function_timer_pub = rospy.Publisher("/function_timer", String, queue_size=1)
         self.has_human_initiated_pub = rospy.Publisher("/has_human_initiated", String, queue_size=1)
         self.freeze_update_pub = rospy.Publisher("/freeze_update", String, queue_size=1)
-        self.disamb_discrete_state_pub = rospy.Publisher('/disamb_discrete_state', DiscreteState, queue_size=1)
-        self.autonomy_turn_target_pub = rospy.Publisher('/autonomy_turn_target', ContinuousState, queue_size=1)
-        self.argmax_goal_pub = rospy.Publisher('/argmax_goal', String, queue_size=1)
-        self.inferred_goal_pub = rospy.Publisher('/inferred_goal', String, queue_size=1)
+        self.disamb_discrete_state_pub = rospy.Publisher("/disamb_discrete_state", DiscreteState, queue_size=1)
+        self.autonomy_turn_target_pub = rospy.Publisher("/autonomy_turn_target", ContinuousState, queue_size=1)
+        self.argmax_goal_pub = rospy.Publisher("/argmax_goal", String, queue_size=1)
+        self.inferred_goal_pub = rospy.Publisher("/inferred_goal", String, queue_size=1)
 
         self.robot_state = State()
         self.robot_discrete_state = DiscreteState()
