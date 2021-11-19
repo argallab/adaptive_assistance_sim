@@ -63,15 +63,15 @@ class Simulator(object):
 
         self.input_action = {}
         self.input_action["full_control_signal"] = user_vel
-        self.input_action['human'] = user_vel
+        self.input_action["human"] = user_vel
 
         rospy.Subscriber("/user_vel", InterfaceSignal, self.joy_callback)
         rospy.Subscriber("/belief_info", BeliefInfo, self.belief_info_callback)
         self.trial_index = 0
 
         self.env_params = None
-        self.trial_info_dir_path = os.path.join(os.path.dirname(__file__),"trial_folders", "training_trial_dir")
-        self.metadata_dir = os.path.join(os.path.dirname(__file__),"trial_folders", "training_metadata_dir")
+        self.trial_info_dir_path = os.path.join(os.path.dirname(__file__), "trial_folders", "training_trial_dir")
+        self.metadata_dir = os.path.join(os.path.dirname(__file__), "trial_folders", "training_metadata_dir")
 
         self.subject_id = subject_id
         self.algo_condition_block = algo_condition_block  # pass these things from launch file
@@ -118,17 +118,17 @@ class Simulator(object):
                 self.metadata_index = pickle.load(fp)
 
             trial_info_filename_index = self.metadata_index[self.trial_index]
-            trial_info_filepath = os.path.join(self.trial_info_dir_path, str(trial_info_filename_index) + '.pkl')
+            trial_info_filepath = os.path.join(self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl")
             assert os.path.exists(trial_info_filepath) is not None
             with open(trial_info_filepath, "rb") as fp:
                 self.env_params = pickle.load(fp)
-            
-            mdp_env_params = self.env_params['all_mdp_env_params']
-            world_bounds  = self.env_params['world_bounds']
-            self.blend_mode = self.env_params['blend_mode']
+
+            mdp_env_params = self.env_params["all_mdp_env_params"]
+            world_bounds = self.env_params["world_bounds"]
+            self.blend_mode = self.env_params["blend_mode"]
 
         # init pfields
-        
+
         self._init_goal_pfields(
             self.env_params["goal_poses"],
             mdp_env_params["dynamic_obs_specs"],
@@ -150,16 +150,16 @@ class Simulator(object):
             pfield_id="generic",
         )
         # alpha from confidence function parameters
-        
-        self.confidence_threshold = 1.05 / len(self.env_params['goal_poses'])
-        self.confidence_max =  1.14 / len(self.env_params['goal_poses'])
+
+        self.confidence_threshold = 1.1 / len(self.env_params["goal_poses"])
+        self.confidence_max = 1.2 / len(self.env_params["goal_poses"])
         self.alpha_max = 0.8
         if self.confidence_max != self.confidence_threshold:
             self.confidence_slope = float(self.alpha_max) / (self.confidence_max - self.confidence_threshold)
         else:
             self.confidence_slope = -1.0
 
-        self.ENTROPY_THRESHOLD = 0.7
+        self.ENTROPY_THRESHOLD = 0.65
 
         # instantiate the environement
         self.env_params["start"] = False
@@ -230,14 +230,16 @@ class Simulator(object):
                             self.shutdown_hook("Reached end of trial list. End of session")
                             break  # experiment is done
                         trial_info_filename_index = self.metadata_index[self.trial_index]
-                        trial_info_filepath = os.path.join(self.trial_info_dir_path, str(trial_info_filename_index) + '.pkl')
+                        trial_info_filepath = os.path.join(
+                            self.trial_info_dir_path, str(trial_info_filename_index) + ".pkl"
+                        )
                         assert os.path.exists(trial_info_filepath) is not None
                         with open(trial_info_filepath, "rb") as fp:
                             self.env_params = pickle.load(fp)
 
-                        mdp_env_params = self.env_params['all_mdp_env_params']
-                        world_bounds  = self.env_params['world_bounds']
-                        self.blend_mode = self.env_params['blend_mode']
+                        mdp_env_params = self.env_params["all_mdp_env_params"]
+                        world_bounds = self.env_params["world_bounds"]
+                        self.blend_mode = self.env_params["blend_mode"]
 
                         self._prepare_trial_setup(mdp_env_params, world_bounds)
                         self.trial_start_time = time.time()
@@ -245,7 +247,6 @@ class Simulator(object):
                         self.trial_index_pub.publish(trial_info_filename_index)
                         is_done = False
                         self.is_restart = False
-                        
 
                 # get current belief. and entropy of belief. compute argmax g
                 (
@@ -257,7 +258,9 @@ class Simulator(object):
                     argmax_goal_id_str,
                 ) = self._get_most_confident_goal()
                 # get human control action in full robot control space
-                human_vel = self.env.get_mode_conditioned_velocity(self.input_action["human"].interface_signal)  # robot_dim
+                human_vel = self.env.get_mode_conditioned_velocity(
+                    self.input_action["human"].interface_signal
+                )  # robot_dim
                 is_mode_switch = self.input_action["human"].mode_switch
 
                 # autonomy inferred a valid goal
@@ -268,7 +271,7 @@ class Simulator(object):
                     self.compute_velocity_request.current_pos = robot_continuous_position
                     self.compute_velocity_request.current_orientation = robot_continuous_orientation
                     # get pfeild vel corresponding to inferred goal
-                    self.compute_velocity_request.pfield_id = (inferred_goal_id_str)
+                    self.compute_velocity_request.pfield_id = inferred_goal_id_str
                     vel_response = self.compute_velocity_srv(self.compute_velocity_request)
                     autonomy_vel = list(vel_response.velocity_final)
                     inferred_goal_pose = self.env_params["goal_poses"][inferred_goal_id]
@@ -293,9 +296,14 @@ class Simulator(object):
                 self.input_action["full_control_signal"] = blend_vel
                 # print(is_mode_switch)
 
-                (robot_continuous_position, robot_continuous_orientation, robot_linear_velocity, robot_angular_velocity, robot_discrete_state, is_done,) = self.env.step(
-                    self.input_action
-                )
+                (
+                    robot_continuous_position,
+                    robot_continuous_orientation,
+                    robot_linear_velocity,
+                    robot_angular_velocity,
+                    robot_discrete_state,
+                    is_done,
+                ) = self.env.step(self.input_action)
 
                 if self.terminate:
                     self.shutdown_hook("Session terminated")
@@ -310,23 +318,23 @@ class Simulator(object):
                 #         np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0
                 #     ):  # determine threshold
                 #         is_done = True
-                
+
                 # print(robot_discrete_state[:-1], self.env_params['all_mdp_env_params']['all_goals']) #(x,y,t,m)
-                for g in self.env_params['goal_poses']:
+                for g in self.env_params["goal_poses"]:
                     goal_continuous_position = g[:-1]
                     goal_continuous_orientation = g[-1]
-                    if (np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0):
+                    if np.linalg.norm(np.array(robot_continuous_position) - np.array(goal_continuous_position)) < 1.0:
                         abs_diff_orientation = abs(goal_continuous_orientation - robot_continuous_orientation)
                         if abs_diff_orientation > PI:
-                            abs_diff_orientation = 2*PI - abs_diff_orientation
+                            abs_diff_orientation = 2 * PI - abs_diff_orientation
                         if abs_diff_orientation < 0.2:
-                            is_done=True
+                            is_done = True
                             break
 
             r.sleep()
 
     def _prepare_trial_setup(self, mdp_env_params, world_bounds):
-        #init pfields
+        # init pfields
         self._init_goal_pfields(
             self.env_params["goal_poses"],
             mdp_env_params["dynamic_obs_specs"],
@@ -348,8 +356,8 @@ class Simulator(object):
             pfield_id="generic",
         )
 
-        self.confidence_threshold = 1.05 / len(self.env_params['goal_poses'])
-        self.confidence_max =  1.14 / len(self.env_params['goal_poses'])
+        self.confidence_threshold = 1.05 / len(self.env_params["goal_poses"])
+        self.confidence_max = 1.14 / len(self.env_params["goal_poses"])
         self.alpha_max = 0.8
         if self.confidence_max != self.confidence_threshold:
             self.confidence_slope = float(self.alpha_max) / (self.confidence_max - self.confidence_threshold)
@@ -364,9 +372,7 @@ class Simulator(object):
         self.env.reset()
         self.env.render()
         self.env.set_information_text("")
-
-
-        #reset inference node
+        # reset inference node
         self.init_belief_request.num_goals = self.env_params["num_goals"]
         status = self.init_belief_srv(self.init_belief_request)
         # unfreeze belief update
@@ -375,7 +381,7 @@ class Simulator(object):
 
         self.p_g_given_phm = (1.0 / self.env_params["num_goals"]) * np.ones(self.env_params["num_goals"])
         self.autonomy_activate_ctr = 0
-        
+
         self.is_autonomy_turn = False
         self.has_human_initiated = False
 
@@ -410,7 +416,9 @@ class Simulator(object):
             blend_vel = np.zeros_like(human_vel)
         return blend_vel
 
-    def _init_other_pfields(self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds, pfield_id="generic"):
+    def _init_other_pfields(
+        self, continuous_goal_poses, obs_param_dict_list, cell_size, world_bounds, pfield_id="generic"
+    ):
         common_obs_descs_list = self._init_pfield_obs_desc(obs_param_dict_list, cell_size, world_bounds)
         cell_size_x = cell_size["x"]
         cell_size_y = cell_size["y"]
@@ -507,7 +515,7 @@ class Simulator(object):
             self.update_attractor_ds_request.attractor_position = goal_pose[:-1]
             self.update_attractor_ds_request.attractor_orientation = goal_pose[-1]  # goal orientation
             self.update_attractor_ds_srv(self.update_attractor_ds_request)
-        
+
     def _init_pfield_obs_desc(self, obs_param_dict_list, cell_size, world_bounds):
         cell_size_x = cell_size["x"]
         cell_size_y = cell_size["y"]
@@ -543,7 +551,7 @@ class Simulator(object):
         # self.init_obstacles_srv(self.init_obstacles_request)
 
         return common_obs_descs_list
-    
+
     def _get_most_confident_goal(self):
         p_g_given_phm_vector = self.p_g_given_phm + np.finfo(self.p_g_given_phm.dtype).tiny
         uniform_distribution = np.array([1.0 / p_g_given_phm_vector.size] * p_g_given_phm_vector.size)
@@ -591,6 +599,7 @@ class Simulator(object):
         elif d > D:
             dist_weight = weight_D * np.exp(-(d - D))
         return dist_weight
+
 
 if __name__ == "__main__":
     subject_id = sys.argv[1]
