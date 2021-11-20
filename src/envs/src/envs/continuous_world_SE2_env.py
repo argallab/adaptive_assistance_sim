@@ -240,6 +240,7 @@ class ContinuousWorldSE2Env(object):
             font_size=MODE_DISPLAY_TEXT_FONTSIZE,
             color=MODE_DISPLAY_TEXT_COLOR,
             anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
+            bold=True,
         )
         self.viewer.draw_text(
             "Vertical",
@@ -248,6 +249,7 @@ class ContinuousWorldSE2Env(object):
             font_size=MODE_DISPLAY_TEXT_FONTSIZE,
             color=MODE_DISPLAY_TEXT_COLOR,
             anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
+            bold=True,
         )
         self.viewer.draw_text(
             "Rotation",
@@ -256,6 +258,7 @@ class ContinuousWorldSE2Env(object):
             font_size=MODE_DISPLAY_TEXT_FONTSIZE,
             color=MODE_DISPLAY_TEXT_COLOR,
             anchor_y=MODE_DISPLAY_TEXT_Y_ANCHOR,
+            bold=True,
         )
 
     def _render_robot_direction_indicators(self):
@@ -267,7 +270,7 @@ class ContinuousWorldSE2Env(object):
             self.information_text,
             x=MODE_DISPLAY_TEXT_START_POSITION[0] + MODE_DISPLAY_TEXT_X_OFFSET,
             y=VIEWPORT_H / 2,
-            font_size=TIMER_DISPLAY_FONTSIZE / 2,
+            font_size=TIMER_DISPLAY_FONTSIZE,
             color=TIMER_COLOR_NEUTRAL,
             anchor_y=TIMER_DISPLAY_TEXT_Y_ANCHOR,
             bold=True,

@@ -116,10 +116,16 @@ class Simulator(object):
             world_bounds = self.env_params["world_bounds"]
             self.algo_condition = self.env_params["algo_condition"]
 
-            print ("ALGO CONDITION", self.algo_condition)
+            print ("ALGO CONDITION", self.algo_condition, mdp_env_params['cell_size'])
         else:
             pass
-
+        
+        self.all_Rs = [mdp_env_params['cell_size']['x'], 
+                    mdp_env_params['cell_size']['y'], 
+                    2*mdp_env_params['cell_size']['x'], 
+                    2*mdp_env_params['cell_size']['y'], 
+                    np.linalg.norm([mdp_env_params['cell_size']['x'], mdp_env_params['cell_size']['y']]),
+                    np.linalg.norm([2*mdp_env_params['cell_size']['x'], 2*mdp_env_params['cell_size']['y']])]
         self._init_goal_pfields(
             self.env_params["goal_poses"],
             mdp_env_params["dynamic_obs_specs"],
@@ -151,6 +157,7 @@ class Simulator(object):
             self.confidence_slope = -1.0
 
         self.ENTROPY_THRESHOLD = 0.65
+        self.AUTONOMY_END_CONDITION_THRESHOLD = 0.1
 
         # instantiate the environement
         self.env_params["start"] = False
@@ -252,9 +259,8 @@ class Simulator(object):
                         is_done = False
                         self.is_restart = False
 
-                human_vel = self.env.get_mode_conditioned_velocity(
-                    self.input_action["human"].interface_signal
-                )  # robot_dim
+                # robot_dim
+                human_vel = self.env.get_mode_conditioned_velocity(self.input_action["human"].interface_signal)  
                 is_mode_switch = self.input_action["human"].mode_switch
                 self.human_vel_msg.data = list(human_vel)
 
@@ -266,14 +272,14 @@ class Simulator(object):
                         inferred_goal_id,
                         inferred_goal_prob,
                         normalized_h_of_p_g_given_phm,
-                        argmax_goal_id,
-                        argmax_goal_id_str,
+                        argmax_goal_ids,
+                        argmax_goal_ids_str,
                     ) = self._get_most_confident_goal()
                     # get human control action in full robot control space
 
                     # autonomy inferred a valid goal
                     if inferred_goal_id_str is not None and inferred_goal_prob is not None:
-                        # get pfield vel for argmax g and current robot pose
+                        # get pfield vel for inferred g and current robot pose
                         robot_continuous_position = self.env.get_robot_position()
                         robot_continuous_orientation = self.env.get_robot_orientation()
                         robot_linear_velocity = self.env.get_robot_linear_velocity()
@@ -449,7 +455,7 @@ class Simulator(object):
                                 self.env.set_mode_in_robot(disamb_state_mode_index)
                             else:
                                 # human has stopped. autonomy' turn. Upon waiting, the confidence is still high. Therefore, move the robot to current confident goal.
-                                print ("ACTIVATING AUTONOMY")
+                                print ("ACTIVATING AUTONOMY DISAMB CONTROL")
                                 self.env.set_information_text("AUTONOMY")
                                 self.env.set_border_blend_index(1.0)
                                 self.turn_indicator_pub.publish("autonomy-pfield")
@@ -487,7 +493,7 @@ class Simulator(object):
                     elif self.algo_condition == "control":
                         # check if ctr is past the threshold
                         if self.autonomy_activate_ctr > self.DISAMB_ACTIVATE_THRESHOLD:
-                            print ("ACTIVATING AUTONOMY")
+                            print ("ACTIVATING AUTONOMY CONTROL")
                             self.env.set_border_blend_index(1.0)
                             self.env.set_information_text("AUTONOMY")
                             self.turn_indicator_pub.publish("autonomy-control")
@@ -497,13 +503,15 @@ class Simulator(object):
                             self.freeze_update_pub.publish("Frozen")
 
                             belief_at_disamb_time = self.p_g_given_phm
-                            # if so, get current argmax goal pose
-                            argmax_goal_pose = self.env_params["goal_poses"][argmax_goal_id]
-                            argmax_goal_position = argmax_goal_pose[:-1]
-                            self.argmax_goal_pub.publish(argmax_goal_id_str)
+                            # if so, get mean of argmax goal location
+                            # argmax_goal_pose = self.env_params["goal_poses"][argmax_goal_ids[0]]
+                            # argmax_goal_position = argmax_goal_pose[:-1]
+                            # self.argmax_goal_pub.publish(argmax_goal_ids_str)
                             # connect the line joining current position and inferref goal position.
                             self.function_timer_pub.publish("before")
-                            target_point = self._get_target_along_line(robot_continuous_position, argmax_goal_position)
+
+                            destination_for_controller = self._get_mean_of_all_argmax_goals(argmax_goal_ids)
+                            target_point = self._get_target_along_line(robot_continuous_position, destination_for_controller)
 
                             self.autonomy_turn_target_msg.robot_continuous_position = list(target_point)
                             self.autonomy_turn_target_msg.robot_continuous_orientation = float(
@@ -563,7 +571,7 @@ class Simulator(object):
                             np.linalg.norm(
                                 np.array(robot_continuous_position) - np.array(max_disamb_continuous_position)
                             )
-                            < 0.1
+                            < self.AUTONOMY_END_CONDITION_THRESHOLD
                         ):
                             print ("DONE WITH DISAMB PHASE")
                             # reset belief to what it was when the disamb mode was activated.
@@ -595,7 +603,7 @@ class Simulator(object):
                             ) = self.env.step(self.input_action)
 
                     elif self.algo_condition == "control":
-                        if np.linalg.norm(np.array(robot_continuous_position) - np.array(target_point)) < 2.0:
+                        if np.linalg.norm(np.array(robot_continuous_position) - np.array(target_point)) < self.AUTONOMY_END_CONDITION_THRESHOLD:
                             print ("DONE WITH AUTONOMY PHASE")
                             # reset belief to what it was when the disamb mode was activated.
                             print ("RESET BELIEF")
@@ -679,6 +687,12 @@ class Simulator(object):
 
     def _prepare_trial_setup(self, mdp_env_params, world_bounds):
         # init pfields
+        self.all_Rs = [mdp_env_params['cell_size']['x'], 
+                    mdp_env_params['cell_size']['y'], 
+                    2*mdp_env_params['cell_size']['x'], 
+                    2*mdp_env_params['cell_size']['y'], 
+                    np.linalg.norm([mdp_env_params['cell_size']['x'], mdp_env_params['cell_size']['y']]),
+                    np.linalg.norm([2*mdp_env_params['cell_size']['x'], 2*mdp_env_params['cell_size']['y']])]
         self._init_goal_pfields(
             self.env_params["goal_poses"],
             mdp_env_params["dynamic_obs_specs"],
@@ -918,9 +932,15 @@ class Simulator(object):
             self.update_attractor_ds_request.attractor_position = goal_pose[:-1]
             self.update_attractor_ds_request.attractor_orientation = goal_pose[-1]  # goal orientation
             self.update_attractor_ds_srv(self.update_attractor_ds_request)
+    
+    def _get_mean_of_all_argmax_goals(self, argmax_goal_ids):
+        argmax_goal_poses = [goal_pose[:-1] for i, goal_pose in enumerate(self.env_params['goal_poses']) if i in argmax_goal_ids]
+        mean_of_all_argmax = np.mean(np.array(argmax_goal_poses), axis=0)
+        return list(mean_of_all_argmax)
+
 
     def _get_target_along_line(self, start_point, end_point, R=10.0):
-
+        R = random.choice(self.all_Rs)
         D = np.linalg.norm(np.array(end_point) - np.array(start_point))
         # if D < 10.0: #if autonomy is within 20 pixel go for the goal
         #     R = D
@@ -930,7 +950,8 @@ class Simulator(object):
         target_y = start_point[1] + (R / D) * (end_point[1] - start_point[1])
 
         target = np.array([target_x, target_y])
-        print ("DISTANCE ", D, R, start_point, end_point, target)
+
+        print ("DISTANCE ", D, R, start_point, end_point, target, np.linalg.norm(np.array(target) - np.array(start_point)) )
         return target
 
     def _get_most_confident_goal(self):
@@ -939,10 +960,13 @@ class Simulator(object):
         max_entropy = -np.dot(uniform_distribution, np.log2(uniform_distribution))
         normalized_h_of_p_g_given_phm = -np.dot(p_g_given_phm_vector, np.log2(p_g_given_phm_vector)) / max_entropy
 
-        argmax_list = np.argwhere(p_g_given_phm_vector == np.amax(p_g_given_phm_vector)).flatten().tolist()
-        argmax_goal_id = random.choice(argmax_list)
-        # argmax_goal_id = np.argmax(p_g_given_phm_vector)
-        argmax_goal_id_str = "goal_" + str(argmax_goal_id)
+        argmax_goal_ids = np.argwhere(p_g_given_phm_vector == np.amax(p_g_given_phm_vector)).flatten().tolist()
+        # argmax_goal_ids = 
+        # argmax_goal_ids = np.argmax(p_g_given_phm_vector)
+        argmax_goal_ids_str = []
+        for argmax_goal_id in argmax_goal_ids:
+            argmax_goal_ids_str.append("goal_" + str(argmax_goal_id))
+
         if normalized_h_of_p_g_given_phm <= self.ENTROPY_THRESHOLD:
             inferred_goal_id = np.argmax(p_g_given_phm_vector)
             goal_id_str = "goal_" + str(inferred_goal_id)
@@ -952,12 +976,12 @@ class Simulator(object):
                 inferred_goal_id,
                 inferred_goal_prob,
                 normalized_h_of_p_g_given_phm,
-                argmax_goal_id,
-                argmax_goal_id_str,
+                argmax_goal_ids,
+                argmax_goal_ids_str,
             )
         else:
             # if entropy not greater than threshold return None as there is no confident goal
-            return None, None, None, normalized_h_of_p_g_given_phm, argmax_goal_id, argmax_goal_id_str
+            return None, None, None, normalized_h_of_p_g_given_phm, argmax_goal_ids, argmax_goal_ids_str
 
     def _compute_alpha(self, inferred_goal_prob):
         if self.confidence_slope != -1.0:
