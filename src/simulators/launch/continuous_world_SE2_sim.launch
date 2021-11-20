@@ -12,7 +12,7 @@
   <!-- bag file name parameters -->
   <group if="$(arg save)">
     <include file="$(find simulators)/launch/record.launch">
-      <arg name="bag_prefix" value="$(arg subject_id)_$(arg condition_block)_condition_$(arg block_id)_adaptive_assistance"/>
+      <arg name="bag_prefix" value="$(arg subject_id)_$(arg algo_condition_block)_condition_$(arg block_id)_adaptive_assistance"/>
     </include>
   </group>
 

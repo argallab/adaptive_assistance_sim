@@ -92,6 +92,7 @@ class ContinuousWorldSE2Env(object):
         return mdp_discrete_orientation
 
     def _transform_continuous_robot_pose_to_discrete_state(self):
+        # print(self.robot.get_position())
         data_index = self.continuous_kd_tree.query(self.robot.get_position())[1]
         if type(data_index) == np.ndarray:
             data_index = data_index[0]

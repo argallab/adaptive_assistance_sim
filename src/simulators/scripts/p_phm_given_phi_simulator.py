@@ -22,7 +22,7 @@ class PPhmGivenPhiSim(object):
 
         self.duration = float(duration) # duration command text is displayed on screen
         self.iterations = int(iterations) # number of iterations each command is to be displayed on screen
-        self.countdown_duration = 1.0
+        self.countdown_duration = 1.5
         self.input_time = rospy.get_rostime()
         self.command_list = []
 

@@ -90,7 +90,7 @@ class SipPuffTrainingEnv(object):
                 self.correct_count = 0
             if self.clear_for_next_prompt:
                 self.prompt = ""
-                if time.time() - self.time >= 0.6:
+                if time.time() - self.time >= 1.2:
                     self.ready_for_new_prompt = True
                     self.clear_for_next_prompt = False
                     if self.prompt_commands == []:

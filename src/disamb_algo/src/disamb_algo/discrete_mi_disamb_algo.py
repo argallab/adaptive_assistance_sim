@@ -98,8 +98,8 @@ class DiscreteMIDisambAlgo(object):
         self.num_modes = self.env_params.get("num_modes", 3)
         self.kl_coeff = self.env_params.get("kl_coeff", 0.8)
         self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
-        self.kl_coeff = 0.5
-        self.dist_coeff = 0.5
+        self.kl_coeff = 0.7
+        self.dist_coeff = 0.3
 
         print(self.kl_coeff, self.dist_coeff)
 

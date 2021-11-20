@@ -227,6 +227,7 @@ class Simulator(object):
                         self.env.render_clear("Loading next trial ...")
                         time.sleep(5.0)  # sleep before the next trial happens
                         self.trial_index += 1
+                        print(self.trial_index)
                         if self.trial_index == len(self.metadata_index):
                             self.shutdown_hook("Reached end of trial list. End of session")
                             break  # experiment is done
