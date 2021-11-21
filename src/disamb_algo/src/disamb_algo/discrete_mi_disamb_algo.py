@@ -135,9 +135,7 @@ class DiscreteMIDisambAlgo(object):
         max_disamb_state = list(self.avg_total_reward_for_valid_states.keys())[amax]
         return max_disamb_state
 
-    def _compute_mi(
-        self, prior, states_for_disamb_computation=None, continuous_positions_of_local_spatial_window=None
-    ):
+    def _compute_mi(self, prior, states_for_disamb_computation=None, continuous_positions_of_local_spatial_window=None):
         self.avg_mi_for_valid_states = collections.OrderedDict()
         self.avg_dist_for_valid_states_from_goals = collections.OrderedDict()
         self.avg_total_reward_for_valid_states = collections.OrderedDict()
@@ -208,7 +206,7 @@ class DiscreteMIDisambAlgo(object):
                 kl_list.append(kl)
 
             # normalized to grid dimensions
-
+            # dist_of_vs_from_goals = []
             # for goal in self.mdp_env_params["all_goals"]:
 
             #     dist_of_vs_from_goal = np.linalg.norm(np.array(goal[:2]) - np.array(vs[:2]))
