@@ -31,7 +31,7 @@
 /robot_state
 /disamb_discrete_state
 /autonomy_turn_target
-/argmax_goal
+/argmax_goals
 /inferred_goal
 " 
 

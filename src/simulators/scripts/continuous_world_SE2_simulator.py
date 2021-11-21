@@ -11,7 +11,7 @@ from sim_pfields.srv import ComputeVelocity, ComputeVelocityRequest, ComputeVelo
 from std_msgs.msg import Float32MultiArray, Float32
 from std_msgs.msg import String, Int8
 from teleop_nodes.msg import InterfaceSignal
-from simulators.msg import State, DiscreteState, ContinuousState
+from simulators.msg import State, DiscreteState, ContinuousState, StringArray
 from simulators.srv import InitBelief, InitBeliefRequest, InitBeliefResponse
 from simulators.srv import ResetBelief, ResetBeliefRequest, ResetBeliefResponse
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
@@ -410,7 +410,7 @@ class Simulator(object):
                                 belief_at_disamb_time = self.p_g_given_phm
                                 self.function_timer_pub.publish("before")
                                 max_disamb_state = self.disamb_algo.get_local_disamb_state(
-                                    self.p_g_given_phm, robot_discrete_state
+                                    self.p_g_given_phm, robot_discrete_state, robot_continuous_position
                                 )
                                 print ("MAX DISAMB STATE", max_disamb_state)
                                 self.disamb_discrete_state_msg.discrete_x = max_disamb_state[0]
@@ -506,7 +506,7 @@ class Simulator(object):
                             # if so, get mean of argmax goal location
                             # argmax_goal_pose = self.env_params["goal_poses"][argmax_goal_ids[0]]
                             # argmax_goal_position = argmax_goal_pose[:-1]
-                            # self.argmax_goal_pub.publish(argmax_goal_ids_str)
+                            self.argmax_goal_pub.publish(argmax_goal_ids_str)
                             # connect the line joining current position and inferref goal position.
                             self.function_timer_pub.publish("before")
 
@@ -673,7 +673,7 @@ class Simulator(object):
         self.freeze_update_pub = rospy.Publisher("/freeze_update", String, queue_size=1)
         self.disamb_discrete_state_pub = rospy.Publisher("/disamb_discrete_state", DiscreteState, queue_size=1)
         self.autonomy_turn_target_pub = rospy.Publisher("/autonomy_turn_target", ContinuousState, queue_size=1)
-        self.argmax_goal_pub = rospy.Publisher("/argmax_goal", String, queue_size=1)
+        self.argmax_goal_pub = rospy.Publisher("/argmax_goals", StringArray, queue_size=1)
         self.inferred_goal_pub = rospy.Publisher("/inferred_goal", String, queue_size=1)
 
         self.robot_state = State()

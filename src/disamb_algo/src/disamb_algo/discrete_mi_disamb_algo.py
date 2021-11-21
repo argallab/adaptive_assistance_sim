@@ -29,6 +29,7 @@ class DiscreteMIDisambAlgo(object):
     def __init__(self, env_params, subject_id):
         self.env_params = env_params
         assert self.env_params is not None
+        assert "goal_poses" in self.env_params
         self._setup_variables()
 
         self.subject_id = subject_id
@@ -44,6 +45,7 @@ class DiscreteMIDisambAlgo(object):
         self.PHM_SPARSE_LEVEL = 0.0
         self.DEFAULT_PHI_GIVEN_A_NOISE = 0.2
         self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.2
+        self.INCLUDE_ROTATION_THRESHOLD = 12.0
 
         assert os.path.exists(self.distribution_directory_path)
         # unify the initialization of these distribution between different classes
@@ -77,6 +79,7 @@ class DiscreteMIDisambAlgo(object):
         assert "spatial_window_half_length" in self.env_params
 
         self.mdp_env_params = self.env_params["all_mdp_env_params"]
+        assert "cell_size" in self.mdp_env_params
         self.grid_width = self.mdp_env_params["grid_width"]
         self.grid_height = self.mdp_env_params["grid_height"]
 
@@ -84,6 +87,9 @@ class DiscreteMIDisambAlgo(object):
         self.mdp_list = self.env_params["mdp_list"]
         assert self.mdp_list is not None
         assert len(self.mdp_list) > 0
+        self.cell_size = self.mdp_env_params["cell_size"]
+        self.goal_positions = [goal_pose[:-1] for goal_pose in self.env_params["goal_poses"]]
+        self.median_of_goal_poses = np.mean(np.array(self.goal_positions), axis=0)
 
         self.num_goals = len(self.mdp_list)
         self.SPATIAL_WINDOW_HALF_LENGTH = self.env_params["spatial_window_half_length"]
@@ -98,8 +104,8 @@ class DiscreteMIDisambAlgo(object):
         self.num_modes = self.env_params.get("num_modes", 3)
         self.kl_coeff = self.env_params.get("kl_coeff", 0.8)
         self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
-        self.kl_coeff = 0.7
-        self.dist_coeff = 0.3
+        self.kl_coeff = 0.5
+        self.dist_coeff = 0.5
 
         print(self.kl_coeff, self.dist_coeff)
 
@@ -108,32 +114,43 @@ class DiscreteMIDisambAlgo(object):
         assert self.env_params is not None
         self._setup_variables()
 
-    def get_local_disamb_state(self, prior, current_state):
+    def get_local_disamb_state(self, prior, current_state, continuous_position):
         # compute window around current_state
-        states_in_local_spatial_window = self._compute_spatial_window_around_current_state(current_state)
+        (
+            states_in_local_spatial_window,
+            continuous_positions_of_local_spatial_window,
+        ) = self._compute_spatial_window_around_current_state(current_state, continuous_position)
         # print(states_in_local_spatial_window)
         # print(len(states_in_local_spatial_window))
         # # perform mi computation for all states in spatial window
-        self._compute_mi(prior, states_in_local_spatial_window)
+        self._compute_mi(prior, states_in_local_spatial_window, continuous_positions_of_local_spatial_window)
         # # pick argmax among this list
         max_disamb_state = self._max_disambiguating_state()
         return max_disamb_state
 
     def _max_disambiguating_state(self):
         rewards = self.avg_total_reward_for_valid_states.values()
-        print("REWARDS FOR ALL NEIGHBORING STATES ", rewards)
+        # print("REWARDS FOR ALL NEIGHBORING STATES ", rewards)
         amax = np.argmax(rewards)
         max_disamb_state = list(self.avg_total_reward_for_valid_states.keys())[amax]
         return max_disamb_state
 
-    def _compute_mi(self, prior, states_for_disamb_computation=None):
+    def _compute_mi(
+        self, prior, states_for_disamb_computation=None, continuous_positions_of_local_spatial_window=None
+    ):
         self.avg_mi_for_valid_states = collections.OrderedDict()
         self.avg_dist_for_valid_states_from_goals = collections.OrderedDict()
         self.avg_total_reward_for_valid_states = collections.OrderedDict()
+        self.dist_of_vs_from_weighted_mean_of_goals = collections.OrderedDict()
 
         assert len(prior) == self.num_goals
+
         prior = prior / np.sum(prior)  # normalizing to make sure random choice works #todo maybe add some minor noise
-        for i, vs in enumerate(states_for_disamb_computation):
+        weighted_mean_position_of_all_goals = np.average(np.array(self.goal_positions), axis=0, weights=prior)
+        print("WEIGHTED MEAN ", prior, weighted_mean_position_of_all_goals, self.goal_positions)
+        for i, (vs, vs_continuous) in enumerate(
+            zip(states_for_disamb_computation, continuous_positions_of_local_spatial_window)
+        ):
             # print("Computing MI for ", vs)
             traj_list = collections.defaultdict(list)
             vs_mode = vs[-1]
@@ -191,22 +208,26 @@ class DiscreteMIDisambAlgo(object):
                 kl_list.append(kl)
 
             # normalized to grid dimensions
-            dist_of_vs_from_goals = []
-            for goal in self.mdp_env_params["all_goals"]:
 
-                dist_of_vs_from_goal = np.linalg.norm(np.array(goal[:2]) - np.array(vs[:2]))
-                dist_of_vs_from_goal = dist_of_vs_from_goal / self.grid_scale
-                dist_of_vs_from_goals.append(dist_of_vs_from_goal)
+            # for goal in self.mdp_env_params["all_goals"]:
 
-            self.avg_dist_for_valid_states_from_goals[vs] = np.mean(dist_of_vs_from_goals)
+            #     dist_of_vs_from_goal = np.linalg.norm(np.array(goal[:2]) - np.array(vs[:2]))
+            #     dist_of_vs_from_goal = dist_of_vs_from_goal / self.grid_scale
+            #     dist_of_vs_from_goals.append(dist_of_vs_from_goal)
+
+            # self.avg_dist_for_valid_states_from_goals[vs] = np.mean(dist_of_vs_from_goals)
+            self.dist_of_vs_from_weighted_mean_of_goals[vs] = np.linalg.norm(
+                vs_continuous - weighted_mean_position_of_all_goals
+            )
             self.avg_mi_for_valid_states[vs] = np.mean(kl_list)  # averaged over goals.
             self.avg_total_reward_for_valid_states[vs] = self.kl_coeff * (
                 self.avg_mi_for_valid_states[vs]
-            ) - self.dist_coeff * (self.avg_dist_for_valid_states_from_goals[vs])
+            ) - self.dist_coeff * (self.dist_of_vs_from_weighted_mean_of_goals[vs])
 
-    def _compute_spatial_window_around_current_state(self, current_state):
+    def _compute_spatial_window_around_current_state(self, current_state, continuous_position):
         current_grid_loc = np.array(current_state[0:2])  # (x,y)
         states_in_local_spatial_window = []
+        continuous_positions_of_local_spatial_window = []
         current_orientation = current_state[2]
 
         # Add todo to ensure that self.mdp list is not None
@@ -218,10 +239,19 @@ class DiscreteMIDisambAlgo(object):
                 range(-self.SPATIAL_WINDOW_HALF_LENGTH + 1, self.SPATIAL_WINDOW_HALF_LENGTH),
             )
         )
-        print("LOCAL 2D WINDOW ", window_coordinates)
-        for wc in window_coordinates:
+        window_displacements_continuous = [
+            np.array(wc) * np.array([self.cell_size["x"], self.cell_size["y"]]) for wc in window_coordinates
+        ]
+        # print("LOCAL 2D WINDOW ", window_coordinates)
+        for wc, wc_continuous in zip(window_coordinates, window_displacements_continuous):
             vs = current_grid_loc + np.array(wc)  # 2d grid loc
+            vs_continuous = continuous_position + wc_continuous
             for mode in range(self.num_modes):  # 0,1,2
+                if (
+                    np.linalg.norm(vs_continuous - self.median_of_goal_poses) > self.INCLUDE_ROTATION_THRESHOLD
+                    and mode == 2
+                ):
+                    continue
                 vs_mode = (
                     vs[0],
                     vs[1],
@@ -230,11 +260,12 @@ class DiscreteMIDisambAlgo(object):
                 )  # same orientation as the current state for all states under consideration
                 if vs_mode in all_state_coords:
                     states_in_local_spatial_window.append(vs_mode)
+                    continuous_positions_of_local_spatial_window.append(vs_continuous)
 
         print("LOCAL WINDOW ", states_in_local_spatial_window)
 
         assert len(states_in_local_spatial_window) > 0, current_state
-        return states_in_local_spatial_window
+        return states_in_local_spatial_window, continuous_positions_of_local_spatial_window
 
     def sample_phi_given_a(self, a, current_mode):  # sample from p(phii|a)
         d = np.random.rand()
