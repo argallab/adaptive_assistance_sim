@@ -49,8 +49,8 @@ Distance, all goals on one side.
 
 
 phi given a
-roslaunch simulators p_phi_given_a_sim.launch subject_id:=andrewtest save:=true iteration:=1 block:=6
-cd src/data_processing/scripts ./generate_personalized_p_phi_given_a.sh andrewtest
+roslaunch simulators p_phi_given_a_sim.launch subject_id:=l001 save:=true iteration:=1 block:=6
+cd src/data_processing/scripts ./generate_personalized_p_phi_given_a.sh l001
 
 phm given phi
 
@@ -62,8 +62,8 @@ In rqt_reconfigure select prompted
 press 's' to start prompted training.
 
 Prompted testing
-roslaunch simulators p_phm_given_phi_sim.launch subject_id:=andrewtest save:=true
-cd src/data_processing/scripts ./generate_personalized_distributions_from_bags.sh andrewtest
+roslaunch simulators p_phm_given_phi_sim.launch subject_id:=l001 save:=true
+cd src/data_processing/scripts ./generate_personalized_distributions_from_bags.sh l001
 
 
 
@@ -79,9 +79,9 @@ roslaunch simulators continuous_world_SE2_sim.launch subject_id:=train algo_cond
 
 
 testing
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=control block_id:=1 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=disamb block_id:=2 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=control block_id:=3 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=disamb block_id:=1 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=disamb block_id:=3 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=andrewtest algo_condition_block:=control block_id:=2 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=control block_id:=1 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=disamb block_id:=2 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=control block_id:=3 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=disamb block_id:=1 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=disamb block_id:=3 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=control block_id:=2 save:=true
