@@ -5,7 +5,7 @@ import itertools
 from mdp.mdp_class import DiscreteMDP
 
 from mdp.mdp_utils import *
-from jaco_adaptive_assistance_utils import *
+from adaptive_assistance_sim_utils import *
 import math
 from scipy import sparse
 
@@ -220,9 +220,9 @@ class MDPDiscrete3DGridWorldWithModes(DiscreteMDP):
             target_mode = current_mode + mode_change_action
             # wrap around mode
             if target_mode == 0:
-                target_mode = Dim.Mode3D.value
-            if target_mode == Dim.Mode3D.value + 1:
                 target_mode = 1
+            if target_mode == Dim.Mode3D.value + 1:
+                target_mode = Dim.Mode3D.value
 
             mode_switch_command = "to" + str(target_mode)
 
@@ -374,12 +374,12 @@ class MDPDiscrete3DGridWorldWithModes(DiscreteMDP):
         else:
             return tuple(state)
 
-    def get_optimal_trajectory_from_state(self, state, horizon=100):
+    def get_optimal_trajectory_from_state(self, state, horizon=100, return_optimal=True):
         # state is 4d tuple (x,y, z, mode)
         sas_trajectory = []
         current_state = state
         for t in range(horizon):
-            optimal_action = self.get_optimal_action(current_state, return_optimal=True)
+            optimal_action = self.get_optimal_action(current_state, return_optimal=return_optimal)
             next_state, _ = tuple(self._transition(current_state, optimal_action))
             sas_trajectory.append((current_state, optimal_action, next_state))
             if self._check_if_state_coord_is_goal_state(next_state):
