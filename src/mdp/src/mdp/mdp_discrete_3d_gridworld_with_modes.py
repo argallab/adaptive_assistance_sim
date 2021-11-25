@@ -5,7 +5,7 @@ import itertools
 from mdp.mdp_class import DiscreteMDP
 
 from mdp.mdp_utils import *
-from adaptive_assistance_sim_utils import *
+from jaco_adaptive_assistance_utils import *
 import math
 from scipy import sparse
 
@@ -26,7 +26,7 @@ class MDPDiscrete3DGridWorldWithModes(DiscreteMDP):
         assert "mdp_obstacles" in self.env_params
         assert "mdp_goal_state" in self.env_params  # 3D
 
-        assert "num_discrete_orientations" in self.env_params
+        # assert "num_discrete_orientations" in self.env_params
         assert "robot_type" in self.env_params  # R3 (x, y, z)
         assert "mode_set_type" in self.env_params  # 1D for HA
         assert "obstacle_penalty" in self.env_params
@@ -159,10 +159,11 @@ class MDPDiscrete3DGridWorldWithModes(DiscreteMDP):
                 new_state_x = state_coord[Dim.X.value]
                 new_state_y = state_coord[Dim.Y.value]
                 new_state_z = state_coord[Dim.Z.value]
-                new_state_x = new_state_x + vel_tuple[Dim.X.value]
-                new_state_y = new_state_y + vel_tuple[Dim.Y.value]
-                new_state_z = new_state_z + vel_tuple[Dim.Z.value]
-                new_state_coord = [new_state_x, new_state_y, new_state_z, state_coord[Dim.ModeR3.value]]
+                # "move_p" results in "decrease of coordinates" because we want soft puff to match to rightwards motion of JACO (which is the -ve x direction)
+                new_state_x = new_state_x - vel_tuple[Dim.X.value]
+                new_state_y = new_state_y - vel_tuple[Dim.Y.value]
+                new_state_z = new_state_z - vel_tuple[Dim.Z.value]
+                new_state_coord = [new_state_x, new_state_y, new_state_z, state_coord[Dim.Mode3D.value]]
                 transition_type = TransitionType.VALID
                 if (
                     new_state_coord[Dim.X.value] < 0
@@ -200,7 +201,9 @@ class MDPDiscrete3DGridWorldWithModes(DiscreteMDP):
         # deal with movement type actions
         if task_level_action == "move_p" or task_level_action == "move_n":
             action_val = self.ACTION_VALS[task_level_action]  # increment of decrement in the mode that allow movement
-            action_vector[state_coord[Dim.Mode3D.value] - 1] = action_val  # -1 because 1,2,3 are the mode values
+            action_vector[
+                state_coord[Dim.Mode3D.value] - 1
+            ] = action_val  # -1 in index because 1,2,3 are the mode values
         elif task_level_action == "to_mode_r" or task_level_action == "to_mode_l":  # mode switch action
             action_val = self.ACTION_VALS[task_level_action]
             action_vector[-1] = action_val  # [0,0,0,-1/+1] -1 in the because mode is the LAST dimension
@@ -213,12 +216,12 @@ class MDPDiscrete3DGridWorldWithModes(DiscreteMDP):
         if mode_change_action == 0:
             mode_switch_command = None
         else:
-            current_mode = state_coord[Dim.ModeR3.value]  # ,1,2,3
+            current_mode = state_coord[Dim.Mode3D.value]  # ,1,2,3
             target_mode = current_mode + mode_change_action
             # wrap around mode
             if target_mode == 0:
-                target_mode = Dim.ModeR3.value
-            if target_mode == Dim.ModeR3.value + 1:
+                target_mode = Dim.Mode3D.value
+            if target_mode == Dim.Mode3D.value + 1:
                 target_mode = 1
 
             mode_switch_command = "to" + str(target_mode)
@@ -227,6 +230,7 @@ class MDPDiscrete3DGridWorldWithModes(DiscreteMDP):
         return (vel_tuple, mode_switch_command)
 
     def _get_mode_transition(self, current_mode, mode_switch_command):
+        # print(current_mode, mode_switch_command)
         if mode_switch_command == "to1":
             new_mode = 1
         elif mode_switch_command == "to2":
