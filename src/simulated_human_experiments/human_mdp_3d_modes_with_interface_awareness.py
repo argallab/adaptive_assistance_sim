@@ -96,7 +96,7 @@ def create_mdp_env_param_dict():
 
     mdp_env_params["original_mdp_obstacles"] = []
 
-    goal_list = [(7, 2, 1), (7, 8, 1), (2, 1, 1), (2, 1, 6)]
+    goal_list = [(7, 1, 1), (7, 7, 1), (2, 2, 1), (2, 2, 6)]
 
     print("MDP GOAL LIST", goal_list)
 
@@ -188,19 +188,42 @@ if __name__ == "__main__":
     env_params = dict()
     env_params["all_mdp_env_params"] = mdp_env_params
     env_params["mdp_list"] = mdp_list
-    env_params["spatial_window_half_length"] = 3
+    env_params["spatial_window_half_length"] = 2
     env_params["goal_positions"] = obj_positions
     env_params["goal_quats"] = obj_quats
-    disamb_algo = DiscreteMIDisambAlgo3D(env_params, "test")
+    disamb_algo = DiscreteMIDisambAlgo3D(env_params, "andreddwtest")
 
     cell_size = mdp_env_params["cell_size"]
-    query_state = (2, 2, 2, 5)
-    start_coord = (2, 2, 2, 3)
-    belief = [0.47, 0.47, 0.03, 0.03]
+    query_state = (4, 3, 3, 5)
+    start_coord = (4, 3, 3, 2)
+    # belief = [0.47, 0.47, 0.03, 0.03]
+
+    belief = [0.01, 0.01, 0.48, 0.48]
+    print("0")
+    print(" ")
     simulate_trajectories(start_coord, 0, mdp_list)
+    print("1")
+    print(" ")
     simulate_trajectories(start_coord, 1, mdp_list)
+    print("2")
+    print(" ")
     simulate_trajectories(start_coord, 2, mdp_list)
+    print("3")
+    print(" ")
     simulate_trajectories(start_coord, 3, mdp_list)
     robot_position = convert_discrete_state_to_continuous_position(query_state, cell_size, world_bounds)
     max_disamb_state = disamb_algo.get_local_disamb_state(belief, query_state, robot_position)
     print(max_disamb_state)
+
+    print("DISMAB 0")
+    print(" ")
+    simulate_trajectories(max_disamb_state, 0, mdp_list)
+    print("DISMAB1")
+    print(" ")
+    simulate_trajectories(max_disamb_state, 1, mdp_list)
+    print("DISMAB2")
+    print(" ")
+    simulate_trajectories(max_disamb_state, 2, mdp_list)
+    print("DISMAB3")
+    print(" ")
+    simulate_trajectories(max_disamb_state, 3, mdp_list)
