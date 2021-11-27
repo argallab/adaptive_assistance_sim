@@ -13,6 +13,7 @@ import itertools
 sys.path.append(os.path.join(rospkg.RosPack().get_path("simulators"), "scripts"))
 from generate_adaptive_assistance_trials import create_random_obstacles, create_random_goals, create_random_start_state
 from mdp.mdp_discrete_3d_gridworld_with_modes import MDPDiscrete3DGridWorldWithModes
+from mdp.mdp_discrete_1d_gridworld import MDPDIscrete1DGridWorld
 from disamb_algo.discrete_mi_disamb_algo_3d import DiscreteMIDisambAlgo3D
 from adaptive_assistance_sim_utils import *
 from mdp.mdp_utils import *
@@ -126,10 +127,21 @@ def convert_discrete_state_to_continuous_position(discrete_state, cell_size, wor
     return robot_position
 
 
+def create_1d_mdp_env_params_dict(mdp_env_params):
+    mdp_dict_1d = collections.defaultdict(list)
+    for i, g in enumerate(mdp_env_params["all_goals"]):
+        for j, g_coord in enumerate(g):
+            mdp_env_params["mdp_goal_state"] = g_coord
+            discrete_jaco_1d_mdp = MDPDIscrete1DGridWorld(copy.deepcopy(mdp_env_params))
+            mdp_dict_1d[j].append(discrete_jaco_1d_mdp)  # j is the 'mode_id'. g_coord is '1d goal'
+
+    return mdp_dict_1d
+
+
 if __name__ == "__main__":
     mdp_env_params = create_mdp_env_param_dict()
     mdp_list = create_mdp_list(mdp_env_params)
-
+    mdp_dict_1d = create_1d_mdp_env_params_dict(mdp_env_params)
     world_bounds = collections.OrderedDict()
     world_bounds["xrange"] = collections.OrderedDict()
     world_bounds["yrange"] = collections.OrderedDict()
