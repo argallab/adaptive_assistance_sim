@@ -1,56 +1,19 @@
-Qualtrics Reading Manual
+Q - Disamb
+C - Conttrol
+Open training Qualtrics in one tab
 
-Describe the environment, the interface. etc. Same as ICRA. Change pictures. 
+Have 6 tabs open and ready to go for post task
 
-
-You and an invisible person inside the compute can control the robot. This person is trying to help you achieve your goal. There Dee is always going to try to figure out 
-which of these goals you are trying to go to. When Dee becomes confident in its prediction of where you are going, it will try to help my assisting in the moving the robot
-towards the goal which it thinks you are going to. 
-
+Have one tab for post session
 
 
-In the testing phase, you and Dee will take turns operating the robot. 
-
-during your turn, Dee will still trying to assist by blending its control with yours. 
-during Dee's turn, Dee will move the robot to different locations in the world (and also potentially change the mode for you) and then hand the turn back to you to continue 
-with your task. You job is to just continue as normal from the state that Dee leaves you with. 
-
-
-phi_given_a training
-
-
-phm_given_phi training
-
-Pure teleop (reach a goal) - 3 times - During teleop your goal is to navigate the 
-Blending (reach a goal) - 2 times
-
-Blending + Turn Taking - 2 times
-
-
-Two conditions: Disamb and Control
-48 -  Total
-
-24 - scenes
-
-Each scene as disamb and control. 
-
-24 disamb
-24 control.
-
-3 blocks fro each condition of 8 trials. Approximately 6-8 minutes? Each. 
-Total of 6 blocks. 45-55 minutes 
-
-
-Out of 24 scenes. Create "hard scenes" where it is hard to intent inference. 
-
-Hardness comes from:
-
-Distance, all goals on one side. 
-
+Recap the summary
 
 phi given a
-roslaunch simulators p_phi_given_a_sim.launch subject_id:=l001 save:=true iteration:=1 block:=6
-cd src/data_processing/scripts ./generate_personalized_p_phi_given_a.sh l001
+
+Emphasize the need for accuracy
+roslaunch simulators p_phi_given_a_sim.launch subject_id:=l10 save:=true iteration:=1 block:=6
+cd src/data_processing/scripts ./generate_personalized_p_phi_given_a.sh l10
 
 phm given phi
 
@@ -62,9 +25,8 @@ In rqt_reconfigure select prompted
 press 's' to start prompted training.
 
 Prompted testing
-roslaunch simulators p_phm_given_phi_sim.launch subject_id:=l001 save:=true
-cd src/data_processing/scripts ./generate_personalized_distributions_from_bags.sh l001
-
+roslaunch simulators p_phm_given_phi_sim.launch subject_id:=l10 save:=true
+cd src/data_processing/scripts ./generate_personalized_distributions_from_bags.sh l10
 
 
 training with just teleop
@@ -74,14 +36,15 @@ training with blending
 roslaunch simulators continuous_world_SE2_sim_training.launch subject_id:=train algo_condition_block:=blending 
 
 training with turn taking + blending
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=train algo_condition_block:=all block_id:=0 training:=1 save:=false
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=train algo_condition_block:=all block_id:=0 training:=1 save:=true 
 
+(6 trials)
 
 
 testing
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=control block_id:=1 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=disamb block_id:=2 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=control block_id:=3 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=disamb block_id:=1 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=disamb block_id:=3 save:=true
-roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l001 algo_condition_block:=control block_id:=2 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l10 algo_condition_block:=control block_id:=0 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l10 algo_condition_block:=disamb block_id:=1 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l10 algo_condition_block:=disamb block_id:=0 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l10 algo_condition_block:=control block_id:=2 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l10 algo_condition_block:=control block_id:=1 save:=true
+roslaunch simulators continuous_world_SE2_sim.launch subject_id:=l10 algo_condition_block:=disamb block_id:=2  save:=true

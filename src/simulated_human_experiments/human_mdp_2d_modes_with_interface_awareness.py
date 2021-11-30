@@ -283,8 +283,8 @@ def compute_mi(mdp_list, mdp_env_params, prior, states_for_disamb_computation=No
     num_trajectories = 50
     assert len(prior) == NUM_GOALS
 
-    kl_coeff = 0.8
-    dist_coeff = 0.2
+    kl_coeff = 1.0
+    dist_coeff = 0.0
     for i, vs in enumerate(states_for_disamb_computation):
         if i % 100 == 0:
             print("Computing MI for ", vs)
@@ -454,7 +454,7 @@ def simulate_human_2d_modes_mdp():
 
     # compute MI for all valid states
     p_vec = [1.0 / NUM_GOALS] * NUM_GOALS
-
+    p_vec = [0.49, 0.49, 0.02]
     compute_mi(mdp_list, mdp_env_params, p_vec)
 
 

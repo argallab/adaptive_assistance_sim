@@ -287,8 +287,8 @@ class MDPDiscrete3DGridWorldWithModes(DiscreteMDP):
         self.task_level_actions["move_p"] = (0, "move_p", 1, 1)
         self.task_level_actions["move_n"] = (1, "move_n", 1, 1)
         # penalize mode switch more than real motion, therefore the action weight is 10
-        self.task_level_actions["to_mode_r"] = (2, "to_mode_r", 10, 1)
-        self.task_level_actions["to_mode_l"] = (3, "to_mode_l", 10, 1)
+        self.task_level_actions["to_mode_r"] = (2, "to_mode_r", 1, 1)
+        self.task_level_actions["to_mode_l"] = (3, "to_mode_l", 1, 1)
 
         self.action_id_to_task_level_action_map = {v[0]: v[1] for k, v in self.task_level_actions.items()}
         self.task_level_action_to_action_id_map = {v[1]: v[0] for k, v in self.task_level_actions.items()}

@@ -44,7 +44,7 @@ class PPhiGivenAEnv(object):
         self.start_prompt = False
         self.clear_for_next_prompt = False
         self.bold = True
-        self.action_timing_bound = 7  # seconds
+        self.action_timing_bound = 10  # seconds
         self.text_timing_bound = 2
 
         self.period = rospy.Duration(1.0)

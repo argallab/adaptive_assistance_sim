@@ -93,10 +93,10 @@ class PPhmGivenPhiSim(object):
 
     # set new text message and render
     def call_render(self, msg, duration):
-            self.env.env_params['text'] = msg
-            self.env.reset()
-            self.env.render()
-            rospy.sleep(duration)
+        self.env.env_params['text'] = msg
+        self.env.reset()
+        self.env.render()
+        rospy.sleep(duration)
 
     def shutdown_hook(self):
         pass
