@@ -51,9 +51,9 @@ class ParseDataIntoUnifiedStruct(object):
             "has_human_initiated": "_has_human_initiated.csv",
             "human_vel": "_human_vel.csv",
             "inferred_goal": "_inferred_goal.csv",
-            "joy_sip_puff_before": "_joy_sip_puff_before.csv",
-            "joy_sip_puff": "_joy_sip_puff.csv",
-            "joy": "_joy.csv",
+            # "joy_sip_puff_before": "_joy_sip_puff_before.csv",
+            # "joy_sip_puff": "_joy_sip_puff.csv",
+            # "joy": "_joy.csv",
             "mode_switch": "_mode_switch.csv",
             "robot_state": "_robot_state.csv",
             "shutdown": "_shutdown.csv",
@@ -75,9 +75,9 @@ class ParseDataIntoUnifiedStruct(object):
             "has_human_initiated": ["rosbagTimestamp", "data"],
             "human_vel": ["rosbagTimestamp", "data"],
             "inferred_goal": ["rosbagTimestamp", "data"],
-            "joy_sip_puff_before": ["rosbagTimestamp", "frame_id", "axes", "buttons"],
-            "joy_sip_puff": ["rosbagTimestamp", "frame_id", "axes", "buttons"],
-            "joy": ["rosbagTimestamp", "frame_id", "axes", "buttons"],
+            # "joy_sip_puff_before": ["rosbagTimestamp", "frame_id", "axes", "buttons"],
+            # "joy_sip_puff": ["rosbagTimestamp", "frame_id", "axes", "buttons"],
+            # "joy": ["rosbagTimestamp", "frame_id", "axes", "buttons"],
             "mode_switch": ["rosbagTimestamp", "data"],
             "robot_state": [
                 "rosbagTimestamp",
@@ -99,11 +99,12 @@ class ParseDataIntoUnifiedStruct(object):
         }
 
         self.total_num_valid_trials_for_all_subjects = 0
-        self.max_trials_per_block = 9
+        self.max_trials_per_block = 8
 
         self.unified_testing_data_dict = collections.OrderedDict()
 
         self.skipped_trials = {}
+        self.ASSISTANCE_CONDITION = args.requested_assistance_condition
 
     def ensure_ascending(self, data):
         if sorted(list(data)) == list(data):
@@ -192,6 +193,8 @@ class ParseDataIntoUnifiedStruct(object):
             full_path_subject_block_dir = os.path.join(self.data_dir, subject_block_dir)
             subject_id = subject_block_dir.split("_")[0]
             assistance_condition = subject_block_dir.split("_")[1]
+            if assistance_condition != self.ASSISTANCE_CONDITION:
+                continue
             block_id = subject_block_dir.split("_")[-1]
             print(full_path_subject_block_dir, subject_id, assistance_condition, block_id)
 
@@ -199,23 +202,35 @@ class ParseDataIntoUnifiedStruct(object):
             for topic, topic_csv in self.topics.items():
                 csv_file_for_topic_for_subject_assistance_block = os.path.join(full_path_subject_block_dir, topic_csv)
                 if os.path.exists(csv_file_for_topic_for_subject_assistance_block):
-                    print("Loading csv for topic", topic)
+                    # print("Loading csv for topic", topic)
                     df = pd.read_csv(
                         csv_file_for_topic_for_subject_assistance_block, header=0, usecols=self.sub_topics[topic]
                     )
                     keys = [key for key in dict(df.dtypes) if dict(df.dtypes)[key] in ["object"]]
-                    print(keys)
+                    if topic == "argmax_goals":
+                        continue
                     for key in keys:
                         df[key].apply(lambda s: s.replace('"', ""))  # remove double quotation
                         # convert data types in [] where some rows are zero (considers mixed so dtype is object instead of int or float array)
                         if topic == "argmax_goals" and key == "data":
                             continue
+                        # print(topic, key)
                         df[key] = df[key].apply(literal_eval)
 
                     # sanity check, ensure rosbag times in ascending order
                     assert self.ensure_ascending(df.rosbagTimestamp)
                     df_dict_subject_assistance_block[topic] = df
 
+            if "autonomy_turn_target" in df_dict_subject_assistance_block.keys():
+                # need to do this renaming to avoid column name clashes during merging
+                df_dict_subject_assistance_block["autonomy_turn_target"] = df_dict_subject_assistance_block[
+                    "autonomy_turn_target"
+                ].rename(
+                    columns={
+                        "robot_continuous_position": "att_target_robot_continuous_position",
+                        "robot_continuous_orientation": "att_target_robot_continuous_orientation",
+                    }
+                )
             is_marked, num_trials_per_block = self.ensure_all_trials_marked(df_dict_subject_assistance_block)
             assert is_marked  # makes sure that the all trials had the 'start marker'
 
@@ -226,9 +241,89 @@ class ParseDataIntoUnifiedStruct(object):
                 df_dict_subject_assistance_block
             )
             assert len(trial_start_indices_subject_block) == len(trial_end_indices_subject_block)
-            import IPython
 
-            IPython.embed(banner1="check embed")
+            topics = df_dict_subject_assistance_block.keys()
+            # list of pandas frames
+            topic_frames = [df_dict_subject_assistance_block[topic] for topic in topics]
+            combined_data_frame_subject_block = topic_frames[0]
+
+            for i in range(0, len(topic_frames)):
+                combined_data_frame_subject_block = combined_data_frame_subject_block.merge(
+                    topic_frames[i], how="outer", sort=True
+                )
+
+            num_valid_trials_per_block = len(trial_start_indices_subject_block)
+            assert num_valid_trials_per_block == self.max_trials_per_block  # might have Nones
+
+            # those trials which were never skipped by pressing P, but marked as skipped due to error in data collection procedure.
+            if subject_block_dir in self.skipped_trials.keys():
+                trial_inds_to_be_skipped = self.skipped_trials[subject_block_dir]
+                for trial_ind in trial_inds_to_be_skipped:
+                    trial_start_indices_subject_block.pop(trial_ind)
+                    trial_end_indices_subject_block.pop(trial_ind)
+
+            assert len(trial_start_indices_subject_block) == len(trial_end_indices_subject_block)
+
+            # Remove any Nones. These were created by pressing P during a trial. Forced skip.
+            if None in trial_start_indices_subject_block:
+                trial_start_indices_subject_block = [
+                    trial_ind for trial_ind in trial_start_indices_subject_block if trial_ind is not None
+                ]
+                trial_end_indices_subject_block = [
+                    trial_ind for trial_ind in trial_end_indices_subject_block if trial_ind is not None
+                ]
+
+            assert len(trial_start_indices_subject_block) == len(trial_end_indices_subject_block)
+
+            num_valid_trials_per_block = len(trial_start_indices_subject_block)
+            self.total_num_valid_trials_for_all_subjects += num_valid_trials_per_block
+
+            for i in range(num_valid_trials_per_block):
+                print("Valid trial num within block", i)
+                # extract the data frame (all topics) for the ith trial.
+                trial_data_frame = combined_data_frame_subject_block.loc[
+                    (combined_data_frame_subject_block["time"] >= trial_start_indices_subject_block[i] - 0.1)
+                    & (combined_data_frame_subject_block["time"] <= trial_end_indices_subject_block[i])
+                ]
+                # reset index for the dataframe so starts from 0
+                trial_data_frame.reset_index(drop=True, inplace=True)
+                ts = trial_data_frame.loc[0, "time"]  # first time stamp of the trial
+                for j in range(len(trial_data_frame)):
+                    # Adjust the timestamps. start from 0.0s for each trial
+                    trial_data_frame.at[j, "time"] = trial_data_frame.loc[j, "time"] - ts
+
+                # grab trial specific information
+                try:
+                    assert np.sum(
+                        ~np.isnan(trial_data_frame["trial_index"].values)
+                    )  # make sure the index was only logged ONCE during the trial
+                except:
+                    import IPython
+
+                    IPython.embed(banner1="catch")
+
+                # What was the original trial index for this particular trial.
+                trial_index_for_trial = int(
+                    trial_data_frame[~np.isnan(trial_data_frame["trial_index"].values)]["trial_index"].values[0]
+                )
+
+                self.unified_testing_data_dict[overall_trial_index] = collections.OrderedDict()
+                self.unified_testing_data_dict[overall_trial_index]["subject_id"] = subject_id
+                self.unified_testing_data_dict[overall_trial_index]["block_id"] = block_id
+                self.unified_testing_data_dict[overall_trial_index]["assistance_condition"] = assistance_condition
+                self.unified_testing_data_dict[overall_trial_index]["trial_data_frame"] = trial_data_frame
+                self.unified_testing_data_dict[overall_trial_index]["trial_index_for_trial"] = trial_index_for_trial
+
+                overall_trial_index += 1
+
+        # self.unified_testing_data_dict has ALL the trials from ALL the subjects ALL blocks. Once this is done, during analysis, different trials can be selected according to different filter criteria, such as subject, block, trial_index
+        assert len(self.unified_testing_data_dict) == self.total_num_valid_trials_for_all_subjects
+        unified_testing_data_dict_filename = os.path.join(
+            self.data_analysis_dir, "unified_testing_data_dict_filename" + self.ASSISTANCE_CONDITION + ".pkl"
+        )
+
+        with open(unified_testing_data_dict_filename, "wb") as fp:
+            pickle.dump(self.unified_testing_data_dict, fp)
 
 
 if __name__ == "__main__":
@@ -240,6 +335,13 @@ if __name__ == "__main__":
         default=48,
         type=int,
     )
+    parser.add_argument(
+        "--requested_assistance_condition",
+        help="assistance condition requested for extracting",
+        default="disamb",
+        type=str,
+    )
+
     args = parser.parse_args()
     pd_object = ParseDataIntoUnifiedStruct(args)
     pd_object.parse_testing_data()
