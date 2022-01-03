@@ -22,6 +22,9 @@ import collections
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 
+RED_GOAL_INDEX = 0
+COLOR_LIST = {"control": "red", "disamb": "blue"}
+
 
 class CompareAssistanceParadigms(object):
     def __init__(self, args):
@@ -57,6 +60,7 @@ class CompareAssistanceParadigms(object):
                 if os.path.isfile(os.path.join(folder, f))
             ]
 
+    # helper functions
     def autonomy_turn_markers_per_trial(self, df):
         # assumes that the autonomy was the first agent to move always.
         autonomy_turn_start_indices = df["turn_indicator"][
@@ -77,6 +81,13 @@ class CompareAssistanceParadigms(object):
 
         return human_turn_start_indices, human_turn_end_indices
 
+    def algo_computation_markers_per_trial(self, df):
+        algo_computation_start_indices = df[df["assistance_compute_marker"] == "before"].index.tolist()
+        algo_computation_end_indices = df[df["assistance_compute_marker"] == "after"].index.tolist()
+
+        return algo_computation_start_indices, algo_computation_end_indices
+
+    # metric computations
     def compute_num_turns(self, df):
         autonomy_turn_start_indices, autonomy_turn_end_indices = self.autonomy_turn_markers_per_trial(df)
         human_turn_start_indices, human_turn_end_indices = self.human_turn_markers_per_trial(df)
@@ -121,6 +132,53 @@ class CompareAssistanceParadigms(object):
             autonomy_mode_switches_per_turn_dict,
         )
 
+    def compute_trial_time(self, df, f):
+        autonomy_turn_start_indices, autonomy_turn_end_indices = self.autonomy_turn_markers_per_trial(df)
+        algo_computation_start_indices, algo_computation_end_indices = self.algo_computation_markers_per_trial(df)
+        if os.path.split(f)[1] == "l03_disamb_2_16.csv":
+            # manually insert a missing 'before'
+            algo_computation_start_indices.insert(3, autonomy_turn_start_indices[3] + 2)
+
+        assert (
+            len(algo_computation_start_indices)
+            == len(algo_computation_end_indices)
+            == len(autonomy_turn_start_indices)
+            == len(autonomy_turn_end_indices)
+        )
+
+        start_index = df["trial_marker"][df["trial_marker"] == "start"].index.tolist()[0]
+        end_index = df["trial_marker"][df["trial_marker"] == "end"].index.tolist()[0]
+
+        trial_time_full = df["time"][end_index] - df["time"][start_index]
+
+        computation_time = 0.0
+        # accumulate the computation time for entire trial by summing up the computation time for each turn
+        for algo_rep, (algo_start_idx, algo_end_idx) in enumerate(
+            zip(algo_computation_start_indices, algo_computation_end_indices)
+        ):
+            computation_time += df["time"][algo_end_idx] - df["time"][algo_start_idx]
+
+        trial_time_minus_computation = trial_time_full - computation_time
+
+        return trial_time_full, trial_time_minus_computation
+
+    def compute_true_goal_probability_gain(self, df):
+        autonomy_turn_start_indices, autonomy_turn_end_indices = self.autonomy_turn_markers_per_trial(df)
+        pg_red = [eval(v)[0] for v in df["p_g_given_phm"].dropna().values]  # probability associated with red goal
+
+        pg_red_gain = pg_red
+        num_time_points = len(pg_red_gain)
+
+        ts = np.linspace(0.0, 1.0, num_time_points)
+        base = np.array([1.0] * num_time_points)
+        weighted_time = sum(pg_red_gain * ts) / sum(pg_red_gain * base)
+
+        start_time_sec = df["time"][df["p_g_given_phm"].dropna().index[0]]
+        end_time_sec = df["time"][df["p_g_given_phm"].dropna().index[-1]]
+
+        times_at_which_autonomy_turn_ends = [df["time"][i] - start_time_sec for i in autonomy_turn_end_indices]
+        return pg_red, start_time_sec, end_time_sec, times_at_which_autonomy_turn_ends, weighted_time
+
     def compute_metric(self, metric, f, condition_type):
         df = pd.read_csv(f, header=0)
 
@@ -142,18 +200,48 @@ class CompareAssistanceParadigms(object):
             human_num_turns, autonomy_num_turns = self.compute_num_turns(df)
             metric_dict = {"human_num_turns": human_num_turns, "autonomy_num_turns": autonomy_num_turns}
 
+        elif metric == "time":
+            trial_time_full, trial_time_minus_computation = self.compute_trial_time(df, f)
+            metric_dict = {
+                "trial_time_full": trial_time_full,
+                "trial_time_minus_computation": trial_time_minus_computation,
+            }
+
+        elif metric == "true_goal_probability_gain":
+            (
+                pg_red,
+                start_time_sec,
+                end_time_sec,
+                times_at_which_autonomy_turn_ends,
+                weighted_time,
+            ) = self.compute_true_goal_probability_gain(df)
+            metric_dict = {
+                "pg_red": pg_red,
+                "start_time_sec": start_time_sec,
+                "end_time_sec": end_time_sec,
+                "times_at_which_autonomy_turn_ends": times_at_which_autonomy_turn_ends,
+                "weighted_time": weighted_time,
+            }
         return metric_dict
+
+    def check_if_file_meets_analysis_condition(self):
+        return True
 
     def group_per_metric(self, metric):
 
-        if metric == "mode_switches" or metric == "num_turns":
-            metric_dict_all_trials = collections.defaultdict(list)
+        # if metric == "mode_switches" or metric == "num_turns" or metric == "time":
+        metric_dict_all_trials = collections.defaultdict(list)
 
         for i, f in enumerate(self.files_name_list):  # iterate over each trial
-            print("filename", f)
+
             self.trial_name_info = f.split("_")  # split up string info contained in the file name
             # get the index that contains the word assistance, minus one to get the assistance type
             condition_type = self.trial_name_info[1]  #'control or 'disamb'
+            if not self.check_if_file_meets_analysis_condition():
+                continue
+            # if not self.trial_name_info[0] in ["l02"]:
+            #     continue
+            print("filename", f)
             metric_dict = self.compute_metric(metric, self.files_path_list[i], condition_type)
 
             if metric == "mode_switches":
@@ -167,8 +255,21 @@ class CompareAssistanceParadigms(object):
                 metric_dict_all_trials[condition_type + "_human_num_turns"].append(metric_dict["human_num_turns"])
                 metric_dict_all_trials[condition_type + "_autonomy_num_turns"].append(metric_dict["autonomy_num_turns"])
 
-        if metric == "mode_switches" or metric == "num_turns":
-            return metric_dict_all_trials
+            elif metric == "time":
+                metric_dict_all_trials[condition_type + "_trial_time_full"].append(metric_dict["trial_time_full"])
+                metric_dict_all_trials[condition_type + "_trial_time_minus_computation"].append(
+                    metric_dict["trial_time_minus_computation"]
+                )
+            elif metric == "true_goal_probability_gain":
+                metric_dict_all_trials[condition_type + "_pg_red"].append(metric_dict["pg_red"])
+                metric_dict_all_trials[condition_type + "_start_time_sec"].append(metric_dict["start_time_sec"])
+                metric_dict_all_trials[condition_type + "_end_time_sec"].append(metric_dict["end_time_sec"])
+                metric_dict_all_trials[condition_type + "_times_at_which_autonomy_turn_ends"].append(
+                    metric_dict["times_at_which_autonomy_turn_ends"]
+                )
+                metric_dict_all_trials[condition_type + "_weighted_time"].append(metric_dict["weighted_time"])
+
+        return metric_dict_all_trials
 
     def create_dataframe(self, data, metric):
         # assumes labels are in the same order of the data
@@ -183,7 +284,7 @@ class CompareAssistanceParadigms(object):
         return df
 
     def data_analysis(self):
-        for metric in ["mode_switches", "num_turns"]:
+        for metric in ["true_goal_probability_gain"]:
             metric_dict_all_trials = self.group_per_metric(metric)
             if metric == "mode_switches":
                 data = [
@@ -196,8 +297,50 @@ class CompareAssistanceParadigms(object):
                     metric_dict_all_trials["control_human_num_turns"],
                     metric_dict_all_trials["disamb_human_num_turns"],
                 ]
-                print(np.mean(data[0]), np.mean(data[1]))
+                print("NUM TURNS - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
                 self.parametric_anova_with_post_hoc(data, metric)
+            elif metric == "time":
+                data = [
+                    metric_dict_all_trials["control_trial_time_minus_computation"],
+                    metric_dict_all_trials["disamb_trial_time_minus_computation"],
+                ]
+                print("TIME - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
+                self.parametric_anova_with_post_hoc(data, metric)
+            elif metric == "true_goal_probability_gain":
+                # self.plot_true_goal_probability_gains(
+                #     metric_dict_all_trials["control_pg_red"],
+                #     metric_dict_all_trials["control_start_time_sec"],
+                #     metric_dict_all_trials["control_end_time_sec"],
+                #     metric_dict_all_trials["control_times_at_which_autonomy_turn_ends"],
+                #     "control",
+                # )
+
+                # self.plot_true_goal_probability_gains(
+                #     metric_dict_all_trials["disamb_pg_red"],
+                #     metric_dict_all_trials["disamb_start_time_sec"],
+                #     metric_dict_all_trials["disamb_end_time_sec"],
+                #     metric_dict_all_trials["disamb_times_at_which_autonomy_turn_ends"],
+                #     "disamb",
+                # )
+                data = [
+                    metric_dict_all_trials["control_weighted_time"],
+                    metric_dict_all_trials["disamb_weighted_time"],
+                ]
+                print("NUM TURNS - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
+                self.parametric_anova_with_post_hoc(data, metric)
+
+    def plot_true_goal_probability_gains(
+        self, pg_red_list, start_time_sec_list, end_time_sec_list, times_at_which_autonomy_turn_ends_list, condition
+    ):
+
+        for pg_red, start_time, end_time, times_at_which_autonomy_turn_ends in zip(
+            pg_red_list, start_time_sec_list, end_time_sec_list, times_at_which_autonomy_turn_ends_list
+        ):
+            num_points = len(pg_red)
+            x_list = np.linspace(0.0, end_time - start_time, num_points - 1)
+            plt.plot(x_list, np.diff(pg_red), color=COLOR_LIST[condition])
+
+        plt.show()
 
     def plot_with_significance(self, df, metric, *args, **kwargs):
 
@@ -271,6 +414,8 @@ class CompareAssistanceParadigms(object):
             plt.ylabel("Percentage of Successful Trials (%)", fontsize=font_size)
         elif metric == "distance":
             plt.ylabel("Distance to Goal", fontsize=font_size)
+        elif metric == "num_turns":
+            plt.ylabel("Number of Human Turns Per Trial", fontsize=font_size)
 
         plt.show()
 
@@ -287,9 +432,8 @@ class CompareAssistanceParadigms(object):
         p_values = []
         # get pairs for x:
         for i in range(len(combinations)):
-            if (
-                pairwise_comparisons.loc[combinations[i][0], combinations[i][1]] <= self.alpha
-            ):  # if signifcane between the two pairs is alot, add position
+            # if signifcane between the two pairs is alot, add position
+            if pairwise_comparisons.loc[combinations[i][0], combinations[i][1]] <= self.alpha:
                 pairs.append([self.label_to_plot_pos[combinations[i][0]], self.label_to_plot_pos[combinations[i][1]]])
                 p_values.append(pairwise_comparisons.loc[combinations[i][0], combinations[i][1]])
 
