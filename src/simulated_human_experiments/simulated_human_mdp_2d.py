@@ -21,20 +21,20 @@ from mdp.mdp_utils import *
 import matplotlib.pyplot as plt
 from disamb_algo.discrete_mi_disamb_algo_2d import DiscreteMIDisambAlgo2D
 
-# low level commands issued by the snp interface. hp = hard puff, hs= hard sip, sp = soft puff, ss = soft sip. Also the domain for ui and um
-INTERFACE_LEVEL_ACTIONS = ["hp", "hs", "sp", "ss"]
-# high level actions, move_p = move in positive direction, move_n = move in negative direction, mode_r = switch mode to right, mode_l = switch mode to left. positive and negative is conditioned on mode
-TASK_LEVEL_ACTIONS = ["move_p", "move_n", "to_mode_r", "to_mode_l"]
-# true mapping of a to phi
-TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP = collections.OrderedDict(
-    {"move_p": "sp", "move_n": "ss", "to_mode_r": "hp", "to_mode_l": "hs"}
-)
-# true inverse mapping of phi to a
-TRUE_INTERFACE_ACTION_TO_TASK_ACTION_MAP = collections.OrderedDict(
-    {v: k for k, v in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.items()}
-)
+# # low level commands issued by the snp interface. hp = hard puff, hs= hard sip, sp = soft puff, ss = soft sip. Also the domain for ui and um
+# INTERFACE_LEVEL_ACTIONS = ["hp", "hs", "sp", "ss"]
+# # high level actions, move_p = move in positive direction, move_n = move in negative direction, mode_r = switch mode to right, mode_l = switch mode to left. positive and negative is conditioned on mode
+# TASK_LEVEL_ACTIONS = ["move_p", "move_n", "to_mode_r", "to_mode_l"]
+# # true mapping of a to phi
+# TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP = collections.OrderedDict(
+#     {"move_p": "sp", "move_n": "ss", "to_mode_r": "hp", "to_mode_l": "hs"}
+# )
+# # true inverse mapping of phi to a
+# TRUE_INTERFACE_ACTION_TO_TASK_ACTION_MAP = collections.OrderedDict(
+#     {v: k for k, v in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.items()}
+# )
 
-INTERFACE_LEVEL_ACTIONS_TO_NUMBER_ID = {"sp": 0, "ss": 1, "hp": 2, "hs": 3}
+# INTERFACE_LEVEL_ACTIONS_TO_NUMBER_ID = {"sp": 0, "ss": 1, "hp": 2, "hs": 3}
 
 # p(phii|a)
 P_PHI_GIVEN_A = collections.OrderedDict()
@@ -256,9 +256,22 @@ def generate_2d_disamb_heatmaps():
     visualize_metrics_map(disamb_algo.avg_total_reward_for_valid_states, mdp_list[0], title="REWARD")
 
 
+def _compute_entropy(p):
+    uniform_distribution = np.array([1.0 / p.size] * p.size)
+    max_entropy = entropy(uniform_distribution)
+    normalized_entropy = entropy(p) / max_entropy
+    return normalized_entropy
+
+
 def simulate_turn_taking_only_teleop():
+    global P_PHI_GIVEN_A_HUMAN, P_PHM_GIVEN_PHI_HUMAN, DEFAULT_PHI_GIVEN_A_NOISE_HUMAN, DEFAULT_PHM_GIVEN_PHI_NOISE_HUMAN, PHI_SPARSE_LEVEL_HUMAN, PHM_SPARSE_LEVEL_HUMAN
+
     mdp_env_params = create_mdp_env_param_dict()
     mdp_list = create_mdp_list(mdp_env_params)
+
+    # init human interface params
+    init_P_PHI_GIVEN_A_HUMAN()
+    init_P_PHM_GIVEN_PHI_HUMAN()
 
     ii_engine_params = collections.OrderedDict()
     ii_engine_params["mdps_for_goals"] = mdp_list
@@ -278,13 +291,46 @@ def simulate_turn_taking_only_teleop():
     print("RANDOM GOAL CHOICE ", g, mdp_env_params["all_goals"][g])
     print("Starting state", current_state)
     print("Starting belief", ii_engine.get_current_p_g_given_phm())
+    previous_belief = ii_engine.get_current_p_g_given_phm()
+    for t in range(horizon):
+        a_sampled = mdp_list[g].get_optimal_action(current_state, return_optimal=False)  # USE human_mdp
+        # sampled corrupted interface level action corresponding to task-level action, could be None
+        phi = sample_phi_given_a_human(a_sampled, current_mode=current_state[-1])
+        # corrupted interface level action, could be None
+        phm = sample_phm_given_phi_human(phi)
+        # package all necessary information for inference engine
+        inference_info_dict = {}
+        inference_info_dict["phm"] = phm
+        inference_info_dict["state"] = current_state
+
+        ii_engine.perform_inference(inference_info_dict)
+        current_belief = ii_engine.get_current_p_g_given_phm()
+        print("Current state, a_sampled, phi, phm, belief", current_state, a_sampled, phi, phm, current_belief)
+        print("CHANGE IN ENTROPY, prev, curr", previous_belief, current_belief)
+        print(_compute_entropy(current_belief) - _compute_entropy(previous_belief))
+        previous_belief = copy.deepcopy(current_belief)
+        a_applied = TRUE_INTERFACE_ACTION_TO_TASK_ACTION_MAP[phm]
+
+        next_state = mdp_list[g].get_next_state_from_state_action(current_state, a_applied)
+        if mdp_list[g].check_if_state_coord_is_goal_state(next_state):
+            print("Reached goal")
+            break
+        current_state = next_state
+        # steps_per_turn_counter += 1
+        # if steps_per_turn_counter >= num_steps_per_turn:
+        #     steps_per_turn_counter = 0
+        #     current_belief_entropy = _compute_entropy(current_belief)
+        #     if current_belief_entropy > ENTROPY_THRESHOLD:
+        #         pass
+
     import IPython
 
     IPython.embed(banner1="check")
 
 
 # For human actions. The noise params can be different from what autonomy this the human is
-def sample_phi_given_a(a, current_mode):  # sample from p(phii|a)
+def sample_phi_given_a_human(a, current_mode):  # sample from p(phii|a)
+    global P_PHI_GIVEN_A_HUMAN, PHI_SPARSE_LEVEL_HUMAN
     d = np.random.rand()
 
     if d < PHI_SPARSE_LEVEL_HUMAN:
@@ -300,7 +346,9 @@ def sample_phi_given_a(a, current_mode):  # sample from p(phii|a)
 
     return phi
 
-def sample_phm_given_phi(phi):  # sample from p(phm|phi)
+
+def sample_phm_given_phi_human(phi):  # sample from p(phm|phi)
+    global P_PHM_GIVEN_PHI, P_PHM_GIVEN_PHI_HUMAN
     d = np.random.rand()
     if phi != "None":
         if d < PHM_SPARSE_LEVEL_HUMAN:
@@ -318,7 +366,7 @@ def sample_phm_given_phi(phi):  # sample from p(phm|phi)
     return phm
 
 
-def init_P_PHI_GIVEN_A():
+def init_P_PHI_GIVEN_A_HUMAN():
     # only to be done at the beginning of a session for a subject. No updating between trials
     global P_PHI_GIVEN_A_HUMAN, DEFAULT_PHI_GIVEN_A_NOISE_HUMAN
     P_PHI_GIVEN_A_HUMAN = collections.OrderedDict()
@@ -342,7 +390,7 @@ def init_P_PHI_GIVEN_A():
                 P_PHI_GIVEN_A_HUMAN[mode][k][u] = blended_dist[index]
 
 
-def init_P_PHM_GIVEN_PHI():
+def init_P_PHM_GIVEN_PHI_HUMAN():
     global P_PHM_GIVEN_PHI_HUMAN, DEFAULT_PHM_GIVEN_PHI_NOISE_HUMAN
     P_PHM_GIVEN_PHI_HUMAN = collections.OrderedDict()
     for i in INTERFACE_LEVEL_ACTIONS:  # ui
