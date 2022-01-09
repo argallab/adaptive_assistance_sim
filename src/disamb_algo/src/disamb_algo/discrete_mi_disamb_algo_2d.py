@@ -44,8 +44,8 @@ class DiscreteMIDisambAlgo2D(object):
         self.P_PHM_GIVEN_PHI = None
         self.PHI_SPARSE_LEVEL = 0.0
         self.PHM_SPARSE_LEVEL = 0.0
-        self.DEFAULT_PHI_GIVEN_A_NOISE = 0.2
-        self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.2
+        self.DEFAULT_PHI_GIVEN_A_NOISE = 0.0
+        self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.0
         self.INCLUDE_ROTATION_THRESHOLD = 12.0
 
         assert os.path.exists(self.distribution_directory_path)
@@ -89,13 +89,13 @@ class DiscreteMIDisambAlgo2D(object):
         assert self.mdp_list is not None
         assert len(self.mdp_list) > 0
         self.cell_size = self.mdp_env_params["cell_size"]
-        self.goal_positions = [goal_pose[:-1] for goal_pose in self.env_params["goal_poses"]]
+        self.goal_positions = [goal_pose for goal_pose in self.env_params["goal_poses"]]
         self.median_of_goal_poses = np.mean(np.array(self.goal_positions), axis=0)
 
         self.num_goals = len(self.mdp_list)
         self.SPATIAL_WINDOW_HALF_LENGTH = self.env_params["spatial_window_half_length"]
 
-        self.num_sample_trajectories = self.env_params.get("num_sample_trajectories", 250)
+        self.num_sample_trajectories = self.env_params.get("num_sample_trajectories", 100)
         self.mode_set_type = self.env_params["mode_set_type"]
         self.robot_type = self.env_params["robot_type"]
         self.mode_set = CARTESIAN_MODE_SET_OPTIONS[self.robot_type][self.mode_set_type]
@@ -104,8 +104,8 @@ class DiscreteMIDisambAlgo2D(object):
         self.num_modes = self.env_params.get("num_modes", 3)
         self.kl_coeff = self.env_params.get("kl_coeff", 0.8)
         self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
-        self.kl_coeff = 0.5
-        self.dist_coeff = 0.5
+        self.kl_coeff = 1.0
+        self.dist_coeff = 0.0
 
         print(self.kl_coeff, self.dist_coeff)
 
@@ -149,6 +149,7 @@ class DiscreteMIDisambAlgo2D(object):
         prior = prior / np.sum(prior)  # normalizing to make sure random choice works #todo maybe add some minor noise
         weighted_mean_position_of_all_goals = np.average(np.array(self.goal_positions), axis=0, weights=prior)
         print("WEIGHTED MEAN ", prior, weighted_mean_position_of_all_goals, self.goal_positions)
+
         for i, (vs, vs_continuous) in enumerate(
             zip(states_for_disamb_computation, continuous_positions_of_local_spatial_window)
         ):
@@ -159,7 +160,7 @@ class DiscreteMIDisambAlgo2D(object):
                 sampled_goal_index = np.random.choice(self.num_goals, p=prior)
                 mdp_for_sampled_goal = self.mdp_list[sampled_goal_index]
                 # sub optimal a_sampled
-                a_sampled = mdp_for_sampled_goal.get_optimal_action(vs, return_optimal=False)
+                a_sampled = mdp_for_sampled_goal.get_optimal_action(vs, return_optimal=True)
                 # sampled corrupted interface level action corresponding to task-level action, could be None
                 phi = self.sample_phi_given_a(a_sampled, vs_mode)
                 # corrupted interface level action, could be None
@@ -174,8 +175,8 @@ class DiscreteMIDisambAlgo2D(object):
                 traj_list[sampled_goal_index].append(traj_tuple)
 
             p_phm_g_s0 = collections.defaultdict(list)  # p(phm | g, s0)
-            for g in traj_list.keys():
-                for traj_g in traj_list[g]:
+            for g in traj_list.keys():  # for each goal sampled
+                for traj_g in traj_list[g]:  # for all traj snippet sampled for g
                     (vs, a_sampled, phi, phm, applied_a, next_state) = traj_g
                     p_phm_g_s0[g].append(INTERFACE_LEVEL_ACTIONS_TO_NUMBER_ID[phm])
 
@@ -193,8 +194,11 @@ class DiscreteMIDisambAlgo2D(object):
                 if ph_action_id not in p_phm_s0_hist.keys():
                     p_phm_s0_hist[ph_action_id] = 0
 
-            p_phm_s = np.array(p_phm_s0_hist.values(), dtype=np.float32)
-            p_phm_s = p_phm_s / np.sum(p_phm_s)
+            p_phm_s0_hist = collections.Counter(dict(sorted(p_phm_s0_hist.items(), key=lambda item: item[0])))
+
+            p_phm_s = np.array(list(p_phm_s0_hist.values()), dtype=np.float32)
+            p_phm_s = p_phm_s / np.sum(p_phm_s)  # normalized histogram
+            # print("P_PHM_S", p_phm_s)
             kl_list = []
             for g in p_phm_g_s0.keys():
                 p_phm_g_s_hist = collections.Counter(p_phm_g_s0[g])
@@ -202,12 +206,23 @@ class DiscreteMIDisambAlgo2D(object):
                     if ph_action_id not in p_phm_g_s_hist.keys():
                         p_phm_g_s_hist[ph_action_id] = 0
 
+                p_phm_g_s_hist = collections.Counter(dict(sorted(p_phm_g_s_hist.items(), key=lambda item: item[0])))
+
                 assert len(p_phm_g_s_hist) == len(p_phm_s)
-                p_phm_g_s = np.array(p_phm_g_s_hist.values(), dtype=np.float32)
+                p_phm_g_s = np.array(list(p_phm_g_s_hist.values()), dtype=np.float32)
                 p_phm_g_s = p_phm_g_s / np.sum(p_phm_g_s)
+
                 kl = np.sum(special.rel_entr(p_phm_g_s, p_phm_s))
                 kl_list.append(kl)
+                # print("GOAL G, p_phm_g_s, KL ", g, p_phm_g_s, kl)
 
+            # import IPython
+
+            # IPython.embed(banner1="check kl")
+            # if sum(kl_list) != 0.0:
+            #     import IPython
+
+            #     IPython.embed(banner1="check state ")
             # normalized to grid dimensions
             # dist_of_vs_from_goals = []
             # for goal in self.mdp_env_params["all_goals"]:
@@ -263,12 +278,12 @@ class DiscreteMIDisambAlgo2D(object):
         if d < self.PHI_SPARSE_LEVEL:
             phi = "None"
         else:
-            p_vector = self.P_PHI_GIVEN_A[current_mode][a].values()  # list of probabilities for phii
+            p_vector = list(self.P_PHI_GIVEN_A[current_mode][a].values())  # list of probabilities for phii
             # sample from the multinomial distribution with distribution p_vector
             phi_index_vector = np.random.multinomial(1, p_vector)
             # grab the index of the index_vector which had a nonzero entry
             phi_index = np.nonzero(phi_index_vector)[0][0]
-            phi = self.P_PHI_GIVEN_A[current_mode][a].keys()[phi_index]  # retrieve phii using the phi_index
+            phi = list(self.P_PHI_GIVEN_A[current_mode][a].keys())[phi_index]  # retrieve phii using the phi_index
             # will be not None
 
         return phi
@@ -279,11 +294,11 @@ class DiscreteMIDisambAlgo2D(object):
             if d < self.PHM_SPARSE_LEVEL:
                 phm = "None"
             else:
-                p_vector = self.P_PHM_GIVEN_PHI[phi].values()  # list of probabilities for phm given phi
+                p_vector = list(self.P_PHM_GIVEN_PHI[phi].values())  # list of probabilities for phm given phi
                 phm_index_vector = np.random.multinomial(1, p_vector)  # sample from the multinomial distribution
                 # grab the index of the index_vector which had a nonzero entry
                 phm_index = np.nonzero(phm_index_vector)[0][0]
-                phm = self.P_PHM_GIVEN_PHI[phi].keys()[phm_index]  # retrieve phm
+                phm = list(self.P_PHM_GIVEN_PHI[phi].keys())[phm_index]  # retrieve phm
         else:
             print("Sampled phi is None, therefore phm is None")
             phm = "None"
@@ -296,7 +311,7 @@ class DiscreteMIDisambAlgo2D(object):
     def init_P_PHI_GIVEN_A(self):
         # only to be done at the beginning of a session for a subject. No updating between trials
         self.P_PHI_GIVEN_A = collections.OrderedDict()
-        for mode in [1, 2, 3]:  # hard coded modes for SE2
+        for mode in [1, 2]:  # hard coded modes for SE2
             self.P_PHI_GIVEN_A[mode] = collections.OrderedDict()
             for k in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():  # task level action
                 self.P_PHI_GIVEN_A[mode][k] = collections.OrderedDict()
