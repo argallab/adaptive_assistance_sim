@@ -130,7 +130,8 @@ def convert_discrete_state_to_continuous_position(discrete_state, cell_size, wor
 def visualize_metrics_map(metric_dict, mdp, title="default"):
 
     mdp_params = mdp.get_env_params()
-    grids = np.zeros((mdp_params["num_modes"], mdp_params["grid_width"], mdp_params["grid_height"]))
+    min_val = min(metric_dict.values())
+    grids = min_val * np.ones((mdp_params["num_modes"], mdp_params["grid_width"], mdp_params["grid_height"]))
     fig, ax = plt.subplots(1, mdp_params["num_modes"])
     for k in metric_dict.keys():
         grids[k[-1] - 1, k[0], k[1]] = metric_dict[k]
@@ -224,8 +225,9 @@ if __name__ == "__main__":
 
     # for mdp in mdp_list:
     #     visualize_V_and_policy(mdp)
+
     disamb_algo = DiscreteMIDisambAlgo2D(env_params, "adnadnak")
-    prior = [1 / NUM_GOALS] * NUM_GOALS
+    prior = [0.5, 0.5, 0.0]
     states_for_disamb_computation = mdp_list[0].get_all_state_coords_with_grid_locs_diff_from_goals_and_obs()
     continuous_positions_of_local_spatial_window = [
         convert_discrete_state_to_continuous_position(s, mdp_env_params["cell_size"], world_bounds)
