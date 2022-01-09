@@ -3,6 +3,11 @@ import collections
 import itertools
 from mdp.mdp_class import DiscreteMDP
 from mdp.mdp_utils import *
+import os
+import sys
+
+sys.path.append(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "simulators", "scripts"))
+
 from adaptive_assistance_sim_utils import *
 import math
 from scipy import sparse
@@ -270,8 +275,8 @@ class MDPDiscrete2DGridWorldWithModes(DiscreteMDP):
         assert state >= 0 and state < self.num_states
         coord = [0, 0, 0]
         coord[Dim.Mode2D.value] = (state % self.num_modes) + 1
-        coord[Dim.Y.value] = (state / self.num_modes) % self.height
-        coord[Dim.X.value] = (state / self.num_modes) / self.height
+        coord[Dim.Y.value] = (state // self.num_modes) % self.height
+        coord[Dim.X.value] = (state // self.num_modes) // self.height
         return tuple(coord)
 
     def get_optimal_action(self, state_coord, return_optimal=True):
@@ -302,9 +307,21 @@ class MDPDiscrete2DGridWorldWithModes(DiscreteMDP):
     def get_empty_cell_id_list(self):
         return self.empty_cell_id_list
 
-    def get_random_valid_state(self):
+    # def get_random_valid_state(self):
+    #     rand_state_id = self.empty_cell_id_list[np.random.randint(len(self.empty_cell_id_list))]  # scalar state id
+    #     return self._convert_1D_state_to_grid_coords(rand_state_id)  # tuple (x,y, t mode)
+
+    def get_random_valid_state(self, is_not_goal=False):
         rand_state_id = self.empty_cell_id_list[np.random.randint(len(self.empty_cell_id_list))]  # scalar state id
-        return self._convert_1D_state_to_grid_coords(rand_state_id)  # tuple (x,y, t mode)
+        state_coord = self._convert_1D_state_to_grid_coords(rand_state_id)
+        if is_not_goal:
+            while self.check_if_state_coord_is_goal_state(state_coord):
+                # scalar state id
+                rand_state_id = self.empty_cell_id_list[np.random.randint(len(self.empty_cell_id_list))]
+                state_coord = self._convert_1D_state_to_grid_coords(rand_state_id)
+        else:
+            rand_state_id = self.empty_cell_id_list[np.random.randint(len(self.empty_cell_id_list))]
+            state_coord = self._convert_1D_state_to_grid_coords(rand_state_id)
 
     def get_goal_state(self):
         return self.goal_state
@@ -318,6 +335,19 @@ class MDPDiscrete2DGridWorldWithModes(DiscreteMDP):
         for state_id in self.empty_cell_id_list:
             state_coord = self._convert_1D_state_to_grid_coords(state_id)
             if self.check_if_state_coord_is_goal_state(state_coord):
+                continue
+            else:
+                state_coord_list.append(state_coord)
+
+        return state_coord_list
+
+    def get_all_state_coords_with_grid_locs_diff_from_goals_and_obs(self):
+        state_coord_list = []
+        for state_id in self.empty_cell_id_list:
+            state_coord = self._convert_1D_state_to_grid_coords(state_id)
+            grid_loc_for_state = self._get_grid_loc_from_state_coord(state_coord)  # tuple
+            # if the grid loc of state matches the grid loc of goal state skip.
+            if grid_loc_for_state == self.get_goal_state()[0:2]:
                 continue
             else:
                 state_coord_list.append(state_coord)
