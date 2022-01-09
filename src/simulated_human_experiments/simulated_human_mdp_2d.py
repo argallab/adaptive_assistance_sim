@@ -75,8 +75,67 @@ PHM_SPARSE_LEVEL_HUMAN = 0.0
 DIM_TO_MODE_INDEX_XYZ = {"x": 0, "y": 1, "z": 2, "gr": 3}
 MODE_INDEX_TO_DIM_XYZ = {v: k for k, v in DIM_TO_MODE_INDEX.items()}
 
+# region based goal generation
 
-def create_mdp_env_param_dict():
+START_REGION_WIDTH = 6
+START_REGION_HEIGHT = 8
+
+GOAL_REGION_WIDTH = 10
+GOAL_REGION_HEIGHT = 12
+
+INTER_GOAL_THRESHOLD = 1
+
+REGIONS_FOR_START_LOCATIONS = {
+    "tr": {
+        "region_bl": (GRID_WIDTH - START_REGION_WIDTH, GRID_HEIGHT - START_REGION_HEIGHT),
+        "region_tr": (GRID_WIDTH - 1, GRID_HEIGHT - 1),
+    },
+    "tl": {"region_bl": (0, GRID_HEIGHT - START_REGION_HEIGHT), "region_tr": (START_REGION_WIDTH, GRID_HEIGHT - 1)},
+    "bl": {"region_bl": (0, 0), "region_tr": (START_REGION_WIDTH, START_REGION_HEIGHT)},
+    "br": {"region_bl": (GRID_WIDTH - START_REGION_WIDTH, 0), "region_tr": (GRID_WIDTH - 1, START_REGION_HEIGHT)},
+}
+
+GOAL_REGIONS_FOR_START_LOCATIONS = {
+    "tr": {"region_bl": (0, 0), "region_tr": (GOAL_REGION_WIDTH, GOAL_REGION_HEIGHT)},
+    "tl": {"region_bl": (GRID_WIDTH - GOAL_REGION_WIDTH, 0), "region_tr": (GRID_WIDTH - 1, GOAL_REGION_HEIGHT)},
+    "bl": {
+        "region_bl": (GRID_WIDTH - GOAL_REGION_WIDTH, GRID_HEIGHT - GOAL_REGION_HEIGHT),
+        "region_tr": (GRID_WIDTH - 1, GRID_HEIGHT - 1),
+    },
+    "br": {"region_bl": (0, GRID_HEIGHT - GOAL_REGION_HEIGHT), "region_tr": (GOAL_REGION_WIDTH, GRID_HEIGHT - 1)},
+}
+
+
+def _create_start_state(start_location, start_mode):
+    start_region = REGIONS_FOR_START_LOCATIONS[start_location]
+    region_bl = start_region["region_bl"]
+    region_tr = start_region["region_tr"]
+    region_coords = list(itertools.product(range(region_bl[0], region_tr[0]), range(region_bl[1], region_tr[1])))
+    sampled_start_location = random.sample(list(set(region_coords)), 1)[0]
+    return (sampled_start_location[0], sampled_start_location[1], start_mode)
+
+
+def create_random_goals_within_regions(goal_region):
+    region_bl = goal_region["region_bl"]
+    region_tr = goal_region["region_tr"]
+    region_coords = list(itertools.product(range(region_bl[0], region_tr[0]), range(region_bl[1], region_tr[1])))
+
+    random_goals = []
+    sampled_goal = random.sample(list(set(region_coords) - set(random_goals)), 1)[0]
+    random_goals.append(sampled_goal)
+    while len(random_goals) < NUM_GOALS:
+        # tuple
+        sampled_goal = random.sample(list(set(region_coords) - set(random_goals)), 1)[0]
+        dist_to_goals = [np.linalg.norm(np.array(sampled_goal) - np.array(g)) for g in random_goals]
+        if min(dist_to_goals) > INTER_GOAL_THRESHOLD:
+            random_goals.append(sampled_goal)
+        else:
+            continue
+
+    return random_goals
+
+
+def create_mdp_env_param_dict(start_location):
     mdp_env_params = collections.OrderedDict()
     mdp_env_params["rl_algo_type"] = RlAlgoType.ValueIteration
     mdp_env_params["gamma"] = 0.96
@@ -101,7 +160,11 @@ def create_mdp_env_param_dict():
     #     num_goals=NUM_GOALS,
     #     obstacle_list=mdp_env_params["original_mdp_obstacles"],
     # )
-    mdp_env_params["all_goals"] = [(3, 18), (8, 5), (14, 6)]
+    goal_region = GOAL_REGIONS_FOR_START_LOCATIONS[start_location]
+    goal_list = create_random_goals_within_regions(goal_region=goal_region)
+
+    mdp_env_params["all_goals"] = goal_list
+    # mdp_env_params["all_goals"] = [(3, 18), (8, 5), (14, 6)]
     # mdp_env_params["all_goals"] = [(5, 1), (5, 8), (7, 8)]
     # print(mdp_env_params['mdp_goal_state']) #(2d goal state)
     # mdp_env_params['all_goals'] = [(0,0), (0,GRID_HEIGHT-1), (GRID_WIDTH-1, GRID_HEIGHT-1)]
@@ -284,7 +347,9 @@ def simulate_turn_taking_only_teleop():
     PHI_SPARSE_LEVEL_HUMAN = 0.03
     PHM_SPARSE_LEVEL_HUMAN = 0.03
 
-    mdp_env_params = create_mdp_env_param_dict()
+    start_location = "br"
+
+    mdp_env_params = create_mdp_env_param_dict(start_location)
     mdp_list, autonomy_mdp_list = create_mdp_list(mdp_env_params, gen_autonomy=True)
 
     # world bounds and cell size
@@ -334,8 +399,10 @@ def simulate_turn_taking_only_teleop():
 
     ii_engine = IntentInference(ii_engine_params)
 
-    current_state = mdp_list[0].get_random_valid_state(is_not_goal=True)  # pick a random state to start off with
+    # current_state = mdp_list[0].get_random_valid_state(is_not_goal=True)  # pick a random state to start off with
 
+    start_mode = np.random.randint(2) + 1  # either 1 or 2
+    current_state = _create_start_state(start_location, start_mode)
     horizon = 100
     min_num_steps_per_turn = 3
     max_num_steps_per_turn = 6  # for human
@@ -349,6 +416,9 @@ def simulate_turn_taking_only_teleop():
     print("Starting belief", ii_engine.get_current_p_g_given_phm())
     previous_belief = ii_engine.get_current_p_g_given_phm()
 
+    import IPython
+
+    IPython.embed(banner1="check")
     # instantiate autonomy policy. acting according to full 2D MDP without modes
 
     # DISAMB
