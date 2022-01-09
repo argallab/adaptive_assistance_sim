@@ -50,8 +50,8 @@ NUM_GOALS = 3
 OCCUPANCY_LEVEL = 0.0
 MAX_PATCHES = 4
 
-GRID_WIDTH = 10
-GRID_HEIGHT = 10
+GRID_WIDTH = 15
+GRID_HEIGHT = 30
 ENTROPY_THRESHOLD = 0.6
 SPATIAL_WINDOW_HALF_LENGTH = 3
 
@@ -79,14 +79,14 @@ def create_mdp_env_param_dict():
 
     mdp_env_params["original_mdp_obstacles"] = []
     # make the list a tuple
-    mdp_env_params["all_goals"] = create_random_goals(
-        width=mdp_env_params["grid_width"],
-        height=mdp_env_params["grid_height"],
-        num_goals=NUM_GOALS,
-        obstacle_list=mdp_env_params["original_mdp_obstacles"],
-    )
-    # mdp_env_params["all_goals"] = [(3, 18), (8, 5), (14, 6)]
-    # mdp_env_params['all_goals'] = [(3, 15), (12, 15)]
+    # mdp_env_params["all_goals"] = create_random_goals(
+    #     width=mdp_env_params["grid_width"],
+    #     height=mdp_env_params["grid_height"],
+    #     num_goals=NUM_GOALS,
+    #     obstacle_list=mdp_env_params["original_mdp_obstacles"],
+    # )
+    mdp_env_params["all_goals"] = [(3, 18), (8, 5), (14, 6)]
+    # mdp_env_params["all_goals"] = [(5, 1), (5, 8), (7, 8)]
     # print(mdp_env_params['mdp_goal_state']) #(2d goal state)
     # mdp_env_params['all_goals'] = [(0,0), (0,GRID_HEIGHT-1), (GRID_WIDTH-1, GRID_HEIGHT-1)]
     mdp_env_params["obstacle_penalty"] = -100
@@ -125,6 +125,58 @@ def convert_discrete_state_to_continuous_position(discrete_state, cell_size, wor
     ]
 
     return position
+
+
+def visualize_metrics_map(metric_dict, mdp, title="default"):
+
+    mdp_params = mdp.get_env_params()
+    grids = np.zeros((mdp_params["num_modes"], mdp_params["grid_width"], mdp_params["grid_height"]))
+    fig, ax = plt.subplots(1, mdp_params["num_modes"])
+    for k in metric_dict.keys():
+        grids[k[-1] - 1, k[0], k[1]] = metric_dict[k]
+    for i in range(mdp_params["num_modes"]):
+        grid = grids[i, :, :]
+        grid = grid.T
+        grid = np.flipud(grid)
+        im = ax[i].imshow(grid)
+        ax[i].set_title("{} Map for mode {}".format(title, i + 1))
+        cbar = ax[i].figure.colorbar(im, ax=ax[i])
+    fig.tight_layout()
+    plt.show()
+
+
+def visualize_V_and_policy(mdp):
+    mdp_params = mdp.get_env_params()
+    V = np.array(mdp.get_value_function()).reshape(
+        (mdp_params["grid_width"], mdp_params["grid_height"], mdp_params["num_modes"])
+    )
+    fig, ax = plt.subplots(2, mdp_params["num_modes"])
+    for i in range(mdp_params["num_modes"]):
+        Va = np.flipud(V[:, :, i].T)
+        vmin = np.percentile(Va, 1)
+        vmax = np.percentile(Va, 99)
+
+        im = ax[0, i].imshow(Va, vmin=vmin, vmax=vmax)
+        cbar = ax[0, i].figure.colorbar(im, ax=ax[0, i])
+        cbar.ax.set_ylabel("V", rotation=-90, va="bottom")
+
+    _, policy_dict = mdp.get_optimal_policy_for_mdp()
+    grids = np.zeros((mdp_params["num_modes"], mdp_params["grid_width"], mdp_params["grid_height"]))
+    for s in policy_dict.keys():
+        # first index is the mode. modes are 1 and 2. hence the -1 to account for 0-indexing
+        grids[s[-1] - 1, s[0], s[1]] = policy_dict[s]
+
+    for i in range(mdp_params["num_modes"]):
+        grid = grids[i, :, :]
+        grid = grid.T
+        grid = np.flipud(grid)
+        im = ax[1, i].imshow(grid)
+        ax[1, i].set_title("Learned Policy Map")
+        cbar = ax[1, i].figure.colorbar(im, ax=ax[1, i])
+        cbar.ax.set_ylabel("mp, mn, mode_r, mode_l", rotation=90, va="bottom")
+
+    fig.tight_layout()
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -170,14 +222,17 @@ if __name__ == "__main__":
     )
     env_params["mdp_list"] = mdp_list
 
-    disamb_algo = DiscreteMIDisambAlgo2D(env_params, "test")
-
+    # for mdp in mdp_list:
+    #     visualize_V_and_policy(mdp)
+    disamb_algo = DiscreteMIDisambAlgo2D(env_params, "adnadnak")
+    prior = [1 / NUM_GOALS] * NUM_GOALS
     states_for_disamb_computation = mdp_list[0].get_all_state_coords_with_grid_locs_diff_from_goals_and_obs()
     continuous_positions_of_local_spatial_window = [
         convert_discrete_state_to_continuous_position(s, mdp_env_params["cell_size"], world_bounds)
         for s in states_for_disamb_computation
     ]
+    disamb_algo._compute_mi(prior, states_for_disamb_computation, continuous_positions_of_local_spatial_window)
 
-    import IPython
-
-    IPython.embed(banner1="check params")
+    visualize_metrics_map(disamb_algo.avg_mi_for_valid_states, mdp_list[0], title="MI")
+    visualize_metrics_map(disamb_algo.dist_of_vs_from_weighted_mean_of_goals, mdp_list[0], title="WEIGHTED DIST")
+    visualize_metrics_map(disamb_algo.avg_total_reward_for_valid_states, mdp_list[0], title="REWARD")
