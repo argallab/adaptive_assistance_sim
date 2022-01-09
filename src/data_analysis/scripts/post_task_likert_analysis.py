@@ -139,6 +139,7 @@ class PostTaskLikertAnalysis(object):
 
         for i, cond in enumerate(assistance_condition):
             sub_df = self.df[self.df["Assistance_Type"] == cond]
+
             responses = self.get_ranks_to_score(sub_df)
             question = []
             condition = []
@@ -151,6 +152,11 @@ class PostTaskLikertAnalysis(object):
             )  # flatten the data and create dataframe so each value corresponds with assistance condition
             df = pd.concat([df, cond_df], join="inner")
             df.reset_index(drop=True, inplace=True)
+
+        import IPython
+
+        IPython.embed(banner1="chec")
+        # TODO add mean plotting function.
         self.plot_stacked_horizontal_bar_plot(df)
 
     def plot_mean_rank_horizontal_bar_plot(self, responses, num_resp, title):
