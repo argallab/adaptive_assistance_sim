@@ -12,7 +12,10 @@ import itertools
 sys.path.append(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "mdp", "src"))
 sys.path.append(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "disamb_algo", "src"))
 
+sys.path.append(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "inference_engine", "scripts"))
+
 from mdp.mdp_discrete_2d_gridworld_with_modes import MDPDiscrete2DGridWorldWithModes
+from intent_inference import IntentInference
 from adaptive_assistance_sim_utils import *
 from mdp.mdp_utils import *
 import matplotlib.pyplot as plt
@@ -54,6 +57,17 @@ GRID_WIDTH = 15
 GRID_HEIGHT = 30
 ENTROPY_THRESHOLD = 0.6
 SPATIAL_WINDOW_HALF_LENGTH = 3
+
+
+# HUMAN_DICTIONS
+
+P_PHI_GIVEN_A_HUMAN = collections.OrderedDict()
+DEFAULT_PHI_GIVEN_A_NOISE_HUMAN = 0.0
+P_PHM_GIVEN_PHI_HUMAN = collections.OrderedDict()
+DEFAULT_PHM_GIVEN_PHI_NOISE_HUMAN = 0.0
+
+PHI_SPARSE_LEVEL_HUMAN = 0.0
+PHM_SPARSE_LEVEL_HUMAN = 0.0
 
 # DICTIONARIES
 DIM_TO_MODE_INDEX_XYZ = {"x": 0, "y": 1, "z": 2, "gr": 3}
@@ -180,7 +194,7 @@ def visualize_V_and_policy(mdp):
     plt.show()
 
 
-if __name__ == "__main__":
+def generate_2d_disamb_heatmaps():
     mdp_env_params = create_mdp_env_param_dict()
 
     mdp_list = create_mdp_list(mdp_env_params)
@@ -207,6 +221,8 @@ if __name__ == "__main__":
     env_params["robot_type"] = CartesianRobotType.R2
     env_params["mode_set_type"] = ModeSetType.OneD
     env_params["spatial_window_half_length"] = 3
+    env_params["phi_given_a_noise"] = 0.1
+    env_params["phm_given_phi_noise"] = 0.1
 
     def _generate_continuous_goal_poses(discrete_goal_list, cell_size, world_bounds):
         goal_poses = []
@@ -238,3 +254,116 @@ if __name__ == "__main__":
     visualize_metrics_map(disamb_algo.avg_mi_for_valid_states, mdp_list[0], title="MI")
     visualize_metrics_map(disamb_algo.dist_of_vs_from_weighted_mean_of_goals, mdp_list[0], title="WEIGHTED DIST")
     visualize_metrics_map(disamb_algo.avg_total_reward_for_valid_states, mdp_list[0], title="REWARD")
+
+
+def simulate_turn_taking_only_teleop():
+    mdp_env_params = create_mdp_env_param_dict()
+    mdp_list = create_mdp_list(mdp_env_params)
+
+    ii_engine_params = collections.OrderedDict()
+    ii_engine_params["mdps_for_goals"] = mdp_list
+    # noise levels that atonomy THINKS human has.
+    ii_engine_params["phi_given_a_noise"] = 0.1
+    ii_engine_params["phm_given_phi_noise"] = 0.1
+
+    ii_engine = IntentInference(ii_engine_params)
+
+    current_state = mdp_list[0].get_random_valid_state(is_not_goal=True)  # pick a random state to start off with
+
+    horizon = 100
+    num_steps_per_turn = 3  # for human
+    p_vec = [1.0 / NUM_GOALS] * NUM_GOALS
+    g = np.random.choice(NUM_GOALS, p=p_vec)
+    print("ALL GOALS ", mdp_env_params["all_goals"])
+    print("RANDOM GOAL CHOICE ", g, mdp_env_params["all_goals"][g])
+    print("Starting state", current_state)
+    print("Starting belief", ii_engine.get_current_p_g_given_phm())
+    import IPython
+
+    IPython.embed(banner1="check")
+
+
+# For human actions. The noise params can be different from what autonomy this the human is
+def sample_phi_given_a(a, current_mode):  # sample from p(phii|a)
+    d = np.random.rand()
+
+    if d < PHI_SPARSE_LEVEL_HUMAN:
+        phi = "None"
+    else:
+        p_vector = list(P_PHI_GIVEN_A_HUMAN[current_mode][a].values())  # list of probabilities for phii
+        # sample from the multinomial distribution with distribution p_vector
+        phi_index_vector = np.random.multinomial(1, p_vector)
+        # grab the index of the index_vector which had a nonzero entry
+        phi_index = np.nonzero(phi_index_vector)[0][0]
+        phi = list(P_PHI_GIVEN_A_HUMAN[current_mode][a].keys())[phi_index]  # retrieve phii using the phi_index
+        # will be not None
+
+    return phi
+
+def sample_phm_given_phi(phi):  # sample from p(phm|phi)
+    d = np.random.rand()
+    if phi != "None":
+        if d < PHM_SPARSE_LEVEL_HUMAN:
+            phm = "None"
+        else:
+            p_vector = list(P_PHM_GIVEN_PHI_HUMAN[phi].values())  # list of probabilities for phm given phi
+            phm_index_vector = np.random.multinomial(1, p_vector)  # sample from the multinomial distribution
+            # grab the index of the index_vector which had a nonzero entry
+            phm_index = np.nonzero(phm_index_vector)[0][0]
+            phm = list(P_PHM_GIVEN_PHI_HUMAN[phi].keys())[phm_index]  # retrieve phm
+    else:
+        print("Sampled phi is None, therefore phm is None")
+        phm = "None"
+
+    return phm
+
+
+def init_P_PHI_GIVEN_A():
+    # only to be done at the beginning of a session for a subject. No updating between trials
+    global P_PHI_GIVEN_A_HUMAN, DEFAULT_PHI_GIVEN_A_NOISE_HUMAN
+    P_PHI_GIVEN_A_HUMAN = collections.OrderedDict()
+    for mode in [1, 2]:  # hard coded modes for SE2
+        P_PHI_GIVEN_A_HUMAN[mode] = collections.OrderedDict()
+        for k in TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP.keys():  # task level action
+            P_PHI_GIVEN_A_HUMAN[mode][k] = collections.OrderedDict()
+            for u in INTERFACE_LEVEL_ACTIONS:
+                if u == TRUE_TASK_ACTION_TO_INTERFACE_ACTION_MAP[k]:
+                    # try to weight the true command more for realistic purposes. Can be offset by using a high PHI_GIVEN_A_NOISE
+                    P_PHI_GIVEN_A_HUMAN[mode][k][u] = 1.0
+                else:
+                    P_PHI_GIVEN_A_HUMAN[mode][k][u] = 0.0
+
+            delta_dist = np.array(list(P_PHI_GIVEN_A_HUMAN[mode][k].values()))
+            uniform_dist = (1.0 / len(INTERFACE_LEVEL_ACTIONS)) * np.ones(len(INTERFACE_LEVEL_ACTIONS))
+            blended_dist = (
+                1 - DEFAULT_PHI_GIVEN_A_NOISE_HUMAN
+            ) * delta_dist + DEFAULT_PHI_GIVEN_A_NOISE_HUMAN * uniform_dist  # np.array
+            for index, u in enumerate(INTERFACE_LEVEL_ACTIONS):
+                P_PHI_GIVEN_A_HUMAN[mode][k][u] = blended_dist[index]
+
+
+def init_P_PHM_GIVEN_PHI():
+    global P_PHM_GIVEN_PHI_HUMAN, DEFAULT_PHM_GIVEN_PHI_NOISE_HUMAN
+    P_PHM_GIVEN_PHI_HUMAN = collections.OrderedDict()
+    for i in INTERFACE_LEVEL_ACTIONS:  # ui
+        P_PHM_GIVEN_PHI_HUMAN[i] = collections.OrderedDict()
+        for j in INTERFACE_LEVEL_ACTIONS:  # um
+            if i == j:
+                # try to weight the true command more for realistic purposes. Can be offset by using a high UM_GIVEN_UI_NOISE
+                P_PHM_GIVEN_PHI_HUMAN[i][j] = 1.0
+            else:
+                # P_PHM_GIVEN_PHI[i][j] = np.random.random()*UM_GIVEN_UI_NOISE#IF UM_GIVEN_UI_NOISE is 0, then the p(um|ui) is a deterministic mapping
+                P_PHM_GIVEN_PHI_HUMAN[i][j] = 0.0
+
+        delta_dist = np.array(list(P_PHM_GIVEN_PHI_HUMAN[i].values()))
+        uniform_dist = (1.0 / len(INTERFACE_LEVEL_ACTIONS)) * np.ones(len(INTERFACE_LEVEL_ACTIONS))
+        blended_dist = (
+            1 - DEFAULT_PHM_GIVEN_PHI_NOISE_HUMAN
+        ) * delta_dist + DEFAULT_PHM_GIVEN_PHI_NOISE_HUMAN * uniform_dist  # np.array
+        for index, j in enumerate(INTERFACE_LEVEL_ACTIONS):
+            P_PHM_GIVEN_PHI_HUMAN[i][j] = blended_dist[index]
+
+
+if __name__ == "__main__":
+    # generate_2d_disamb_heatmaps()
+    simulate_turn_taking_only_teleop()
