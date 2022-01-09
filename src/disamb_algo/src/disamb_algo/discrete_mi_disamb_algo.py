@@ -190,6 +190,8 @@ class DiscreteMIDisambAlgo(object):
                 if ph_action_id not in p_phm_s0_hist.keys():
                     p_phm_s0_hist[ph_action_id] = 0
 
+            p_phm_s0_hist = collections.Counter(dict(sorted(p_phm_s0_hist.items(), key=lambda item: item[0])))
+
             p_phm_s = np.array(p_phm_s0_hist.values(), dtype=np.float32)
             p_phm_s = p_phm_s / np.sum(p_phm_s)
             kl_list = []
@@ -198,6 +200,8 @@ class DiscreteMIDisambAlgo(object):
                 for ph_action_id in ph_actions_ids:
                     if ph_action_id not in p_phm_g_s_hist.keys():
                         p_phm_g_s_hist[ph_action_id] = 0
+
+                p_phm_g_s_hist = collections.Counter(dict(sorted(p_phm_g_s_hist.items(), key=lambda item: item[0])))
 
                 assert len(p_phm_g_s_hist) == len(p_phm_s)
                 p_phm_g_s = np.array(p_phm_g_s_hist.values(), dtype=np.float32)
