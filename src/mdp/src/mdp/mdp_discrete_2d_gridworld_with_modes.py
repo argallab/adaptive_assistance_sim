@@ -323,6 +323,8 @@ class MDPDiscrete2DGridWorldWithModes(DiscreteMDP):
             rand_state_id = self.empty_cell_id_list[np.random.randint(len(self.empty_cell_id_list))]
             state_coord = self._convert_1D_state_to_grid_coords(rand_state_id)
 
+        return state_coord  # tuple (x,y,mode)
+
     def get_goal_state(self):
         return self.goal_state
 
@@ -357,8 +359,11 @@ class MDPDiscrete2DGridWorldWithModes(DiscreteMDP):
     def get_next_state_from_state_action(self, state, task_level_action):
         # state is a 3d tuple (x,y, mode)
         # task_level_action is string which is in [movep, moven, mode_r, mode_l]
-        next_state_coord, _ = self._transition(state, task_level_action)  # np array
-        return tuple(next_state_coord)  # make list into tuple (x',y',mode')
+        if not task_level_action == "None":
+            next_state_coord, _ = self._transition(state, task_level_action)  # np array
+            return tuple(next_state_coord)  # make list into tuple (x',y',mode')
+        else:
+            return tuple(state)
 
     def get_optimal_trajectory_from_state(self, state_coord, horizon=100, return_optimal=True):
         # state is 3d tuple (x,y,mode)

@@ -32,8 +32,8 @@ class IntentInference(object):
         self.P_PHM_GIVEN_PHI = None
         self.PHI_SPARSE_LEVEL = 0.0
         self.PHM_SPARSE_LEVEL = 0.0
-        self.DEFAULT_PHI_GIVEN_A_NOISE = intent_inference_params.get("phi_given_a_noise", 0.0)
-        self.DEFAULT_PHM_GIVEN_PHI_NOISE = intent_inference_params.get("phm_given_phi_noise", 0.0)
+        self.DEFAULT_PHI_GIVEN_A_NOISE = intent_inference_params.get("phi_given_a_noise", 0.1)
+        self.DEFAULT_PHM_GIVEN_PHI_NOISE = intent_inference_params.get("phm_given_phi_noise", 0.1)
 
         self.DELAYED_DECAY_THRESHOLD = 10
 
@@ -68,10 +68,15 @@ class IntentInference(object):
                             * self.P_PHI_GIVEN_A[current_mode][a][phi]
                             * mdp_g.get_prob_a_given_s(state, a)
                         )
-                self.p_g_given_phm[g] = self.p_g_given_phm[g] * likelihood
+                self.p_g_given_phm[g] = self.p_g_given_phm[g] * (1e-7 + likelihood)
 
+            if np.sum(self.p_g_given_phm) == 0.0:
+                import IPython
+
+                IPython.embed(banner1="check belief zero")
             self.p_g_given_phm = self.p_g_given_phm / np.sum(self.p_g_given_phm)
         else:
+            print("No change in belief phm is None")
             pass
 
     def get_current_p_g_given_phm(self):
