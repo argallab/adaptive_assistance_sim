@@ -44,8 +44,9 @@ class DiscreteMIDisambAlgo2D(object):
         self.P_PHM_GIVEN_PHI = None
         self.PHI_SPARSE_LEVEL = 0.0
         self.PHM_SPARSE_LEVEL = 0.0
-        self.DEFAULT_PHI_GIVEN_A_NOISE = 0.0
-        self.DEFAULT_PHM_GIVEN_PHI_NOISE = 0.0
+        self.DEFAULT_PHI_GIVEN_A_NOISE = env_params.get("phi_given_a_noise", 0.0)
+        self.DEFAULT_PHM_GIVEN_PHI_NOISE = env_params.get("phm_given_phi_noise", 0.0)
+
         self.INCLUDE_ROTATION_THRESHOLD = 12.0
 
         assert os.path.exists(self.distribution_directory_path)
@@ -104,8 +105,6 @@ class DiscreteMIDisambAlgo2D(object):
         self.num_modes = self.env_params.get("num_modes", 3)
         self.kl_coeff = self.env_params.get("kl_coeff", 0.8)
         self.dist_coeff = self.env_params.get("dist_coeff", 0.2)
-        self.kl_coeff = 1.0
-        self.dist_coeff = 0.0
 
         print(self.kl_coeff, self.dist_coeff)
 
@@ -216,13 +215,6 @@ class DiscreteMIDisambAlgo2D(object):
                 kl_list.append(kl)
                 # print("GOAL G, p_phm_g_s, KL ", g, p_phm_g_s, kl)
 
-            # import IPython
-
-            # IPython.embed(banner1="check kl")
-            # if sum(kl_list) != 0.0:
-            #     import IPython
-
-            #     IPython.embed(banner1="check state ")
             # normalized to grid dimensions
             # dist_of_vs_from_goals = []
             # for goal in self.mdp_env_params["all_goals"]:
