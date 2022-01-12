@@ -49,7 +49,7 @@ PHM_GIVEN_PHI_NOISE = 0.0  # Lower the number, lower the error. Between 0 and 1.
 
 PHI_SPARSE_LEVEL = 0.0
 PHM_SPARSE_LEVEL = 0.0
-
+MODE_DICT = {0: "Horizontal", 1: "Vertical"}
 
 NUM_GOALS = 3
 OCCUPANCY_LEVEL = 0.0
@@ -82,6 +82,7 @@ START_REGION_HEIGHT = 8
 
 GOAL_REGION_WIDTH = 10
 GOAL_REGION_HEIGHT = 12
+START_LOCATIONS = ["tr", "tl", "bl", "br"]
 
 INTER_GOAL_THRESHOLD = 1
 
@@ -115,7 +116,7 @@ def _create_start_state(start_location, start_mode):
     return (sampled_start_location[0], sampled_start_location[1], start_mode)
 
 
-def create_random_goals_within_regions(goal_region):
+def create_random_goals_within_regions(goal_region, num_goals):
     region_bl = goal_region["region_bl"]
     region_tr = goal_region["region_tr"]
     region_coords = list(itertools.product(range(region_bl[0], region_tr[0]), range(region_bl[1], region_tr[1])))
@@ -123,7 +124,7 @@ def create_random_goals_within_regions(goal_region):
     random_goals = []
     sampled_goal = random.sample(list(set(region_coords) - set(random_goals)), 1)[0]
     random_goals.append(sampled_goal)
-    while len(random_goals) < NUM_GOALS:
+    while len(random_goals) < num_goals:
         # tuple
         sampled_goal = random.sample(list(set(region_coords) - set(random_goals)), 1)[0]
         dist_to_goals = [np.linalg.norm(np.array(sampled_goal) - np.array(g)) for g in random_goals]
@@ -135,7 +136,7 @@ def create_random_goals_within_regions(goal_region):
     return random_goals
 
 
-def create_mdp_env_param_dict(start_location):
+def create_mdp_env_param_dict(start_location, num_goals):
     mdp_env_params = collections.OrderedDict()
     mdp_env_params["rl_algo_type"] = RlAlgoType.ValueIteration
     mdp_env_params["gamma"] = 0.96
@@ -160,11 +161,13 @@ def create_mdp_env_param_dict(start_location):
     #     num_goals=NUM_GOALS,
     #     obstacle_list=mdp_env_params["original_mdp_obstacles"],
     # )
-    goal_region = GOAL_REGIONS_FOR_START_LOCATIONS[start_location]
-    goal_list = create_random_goals_within_regions(goal_region=goal_region)
-
-    mdp_env_params["all_goals"] = goal_list
-    # mdp_env_params["all_goals"] = [(3, 18), (8, 5), (14, 6)]
+    if start_location == None:
+        mdp_env_params["all_goals"] = [(3, 18), (8, 5), (14, 6)]
+    else:
+        goal_region = GOAL_REGIONS_FOR_START_LOCATIONS[start_location]
+        goal_list = create_random_goals_within_regions(goal_region=goal_region, num_goals=num_goals)
+        mdp_env_params["all_goals"] = goal_list
+    #
     # mdp_env_params["all_goals"] = [(5, 1), (5, 8), (7, 8)]
     # print(mdp_env_params['mdp_goal_state']) #(2d goal state)
     # mdp_env_params['all_goals'] = [(0,0), (0,GRID_HEIGHT-1), (GRID_WIDTH-1, GRID_HEIGHT-1)]
@@ -229,8 +232,35 @@ def visualize_metrics_map(metric_dict, mdp, title="default"):
         grid = grid.T
         grid = np.flipud(grid)
         im = ax[i].imshow(grid)
-        ax[i].set_title("{} Map for mode {}".format(title, i + 1))
+        ax[i].set_title("D(s) - {} Mode".format(MODE_DICT[i]))
         cbar = ax[i].figure.colorbar(im, ax=ax[i])
+    fig.tight_layout()
+    plt.show()
+
+
+def policy_for_all_mdps(mdp_list):
+
+    fig, ax = plt.subplots(mdp_list[0].get_env_params()["num_modes"], len(mdp_list))
+    for mdp_i, mdp in enumerate(mdp_list):
+        mdp_params = mdp.get_env_params()
+        _, policy_dict = mdp.get_optimal_policy_for_mdp()
+        grids = np.zeros((mdp_params["num_modes"], mdp_params["grid_width"], mdp_params["grid_height"]))
+        for s in policy_dict.keys():
+            grids[s[-1] - 1, s[0], s[1]] = policy_dict[s]
+
+        for i in range(mdp_params["num_modes"]):
+            grid = grids[i, :, :]
+            grid = grid.T
+            grid = np.flipud(grid)
+            im = ax[i, mdp_i].imshow(grid)
+            ax[i, mdp_i].set_title("Learned Policy Goal {} - {} Mode".format(mdp_i + 1, MODE_DICT[i]))
+            if mdp_i == len(mdp_list) - 1:
+                cbar = ax[i, mdp_i].figure.colorbar(im, ax=ax[i, mdp_i])
+                cbar.ax.set_ylabel(
+                    "move_p,       move_n,      switch_r,      switch_l", rotation=90, va="bottom", size=12, labelpad=30
+                )
+
+    # fig.subplots_adjust(wspace=10, hspace=0)
     fig.tight_layout()
     plt.show()
 
@@ -248,7 +278,7 @@ def visualize_V_and_policy(mdp):
 
         im = ax[0, i].imshow(Va, vmin=vmin, vmax=vmax)
         cbar = ax[0, i].figure.colorbar(im, ax=ax[0, i])
-        cbar.ax.set_ylabel("V", rotation=-90, va="bottom")
+        cbar.ax.set_ylabel("V", rotation=-90, va="bottom", labelpad=4)
 
     _, policy_dict = mdp.get_optimal_policy_for_mdp()
     grids = np.zeros((mdp_params["num_modes"], mdp_params["grid_width"], mdp_params["grid_height"]))
@@ -269,6 +299,22 @@ def visualize_V_and_policy(mdp):
     plt.show()
 
 
+def visualize_goals(mdp):
+    mdp_params = mdp.get_env_params()
+    all_goals = mdp_params["all_goals"]
+    grid = np.zeros((mdp_params["grid_width"], mdp_params["grid_height"]))
+    fig, ax = plt.subplots(1, 1)
+    for g in all_goals:
+        grid[g[0], g[1]] = 100
+
+    grid = grid.T
+    grid = np.flipud(grid)
+    im = ax.imshow(grid)
+    ax.set_title("Goal Configuration")
+    fig.tight_layout()
+    plt.show()
+
+
 def _generate_continuous_goal_poses(discrete_goal_list, cell_size, world_bounds):
     goal_poses = []
     for dg in discrete_goal_list:
@@ -280,8 +326,8 @@ def _generate_continuous_goal_poses(discrete_goal_list, cell_size, world_bounds)
     return goal_poses
 
 
-def generate_2d_disamb_heatmaps():
-    mdp_env_params = create_mdp_env_param_dict()
+def generate_2d_disamb_heatmaps(prior=None):
+    mdp_env_params = create_mdp_env_param_dict(start_location=None, num_goals=3)
 
     mdp_list = create_mdp_list(mdp_env_params, gen_autonomy=False)
 
@@ -307,19 +353,22 @@ def generate_2d_disamb_heatmaps():
     env_params["robot_type"] = CartesianRobotType.R2
     env_params["mode_set_type"] = ModeSetType.OneD
     env_params["spatial_window_half_length"] = 3
-    env_params["phi_given_a_noise"] = 0.1
-    env_params["phm_given_phi_noise"] = 0.1
+    env_params["phi_given_a_noise"] = 0.001
+    env_params["phm_given_phi_noise"] = 0.001
 
     env_params["goal_poses"] = _generate_continuous_goal_poses(
         mdp_env_params["all_goals"], mdp_env_params["cell_size"], world_bounds
     )
     env_params["mdp_list"] = mdp_list
 
+    # policy_for_all_mdps(mdp_list)
     # for mdp in mdp_list:
+    #     visualize_goals(mdp)
     #     visualize_V_and_policy(mdp)
 
+    if prior == None:
+        prior = [1 / NUM_GOALS] * NUM_GOALS
     disamb_algo = DiscreteMIDisambAlgo2D(env_params, "adnadnak")
-    prior = [0.5, 0.5, 0.0]
     states_for_disamb_computation = mdp_list[0].get_all_state_coords_with_grid_locs_diff_from_goals_and_obs()
     continuous_positions_of_local_spatial_window = [
         convert_discrete_state_to_continuous_position(s, mdp_env_params["cell_size"], world_bounds)
@@ -342,153 +391,153 @@ def _compute_entropy(p):
 def simulate_turn_taking_only_teleop():
     global P_PHI_GIVEN_A_HUMAN, P_PHM_GIVEN_PHI_HUMAN, DEFAULT_PHI_GIVEN_A_NOISE_HUMAN, DEFAULT_PHM_GIVEN_PHI_NOISE_HUMAN, PHI_SPARSE_LEVEL_HUMAN, PHM_SPARSE_LEVEL_HUMAN
 
-    DEFAULT_PHI_GIVEN_A_NOISE_HUMAN = 0.1
-    DEFAULT_PHM_GIVEN_PHI_NOISE_HUMAN = 0.1
+    DEFAULT_PHI_GIVEN_A_NOISE_HUMAN = 0.2
+    DEFAULT_PHM_GIVEN_PHI_NOISE_HUMAN = 0.2
     PHI_SPARSE_LEVEL_HUMAN = 0.03
     PHM_SPARSE_LEVEL_HUMAN = 0.03
 
-    start_location = "br"
+    num_trials = 10
+    for trial in range(num_trials):
 
-    mdp_env_params = create_mdp_env_param_dict(start_location)
-    mdp_list, autonomy_mdp_list = create_mdp_list(mdp_env_params, gen_autonomy=True)
+        start_location = random.choice(START_LOCATIONS)
+        num_goals = random.choice([3, 4])
+        print("START LOCATION, NUM_GOALS ", start_location, num_goals)
+        mdp_env_params = create_mdp_env_param_dict(start_location, num_goals)
+        mdp_list, autonomy_mdp_list = create_mdp_list(mdp_env_params, gen_autonomy=True)
 
-    # world bounds and cell size
-    world_bounds = collections.OrderedDict()
-    world_bounds["xrange"] = collections.OrderedDict()
-    world_bounds["yrange"] = collections.OrderedDict()
-    # bottom left corner in continuous space
-    world_bounds["xrange"]["lb"] = 0.05 * VIEWPORT_W / SCALE
-    world_bounds["yrange"]["lb"] = 0.05 * VIEWPORT_H / SCALE
-    world_bounds["xrange"]["ub"] = 0.75 * VIEWPORT_W / SCALE
-    world_bounds["yrange"]["ub"] = 0.9 * VIEWPORT_H / SCALE
+        # world bounds and cell size
+        world_bounds = collections.OrderedDict()
+        world_bounds["xrange"] = collections.OrderedDict()
+        world_bounds["yrange"] = collections.OrderedDict()
+        # bottom left corner in continuous space
+        world_bounds["xrange"]["lb"] = 0.05 * VIEWPORT_W / SCALE
+        world_bounds["yrange"]["lb"] = 0.05 * VIEWPORT_H / SCALE
+        world_bounds["xrange"]["ub"] = 0.75 * VIEWPORT_W / SCALE
+        world_bounds["yrange"]["ub"] = 0.9 * VIEWPORT_H / SCALE
 
-    mdp_env_params["cell_size"] = collections.OrderedDict()
-    mdp_env_params["cell_size"]["x"] = (world_bounds["xrange"]["ub"] - world_bounds["xrange"]["lb"]) / mdp_env_params[
-        "grid_width"
-    ]
-    mdp_env_params["cell_size"]["y"] = (world_bounds["yrange"]["ub"] - world_bounds["yrange"]["lb"]) / mdp_env_params[
-        "grid_height"
-    ]
+        mdp_env_params["cell_size"] = collections.OrderedDict()
+        mdp_env_params["cell_size"]["x"] = (
+            world_bounds["xrange"]["ub"] - world_bounds["xrange"]["lb"]
+        ) / mdp_env_params["grid_width"]
+        mdp_env_params["cell_size"]["y"] = (
+            world_bounds["yrange"]["ub"] - world_bounds["yrange"]["lb"]
+        ) / mdp_env_params["grid_height"]
 
-    # init human interface params
-    init_P_PHI_GIVEN_A_HUMAN()
-    init_P_PHM_GIVEN_PHI_HUMAN()
+        # init human interface params
+        init_P_PHI_GIVEN_A_HUMAN()
+        init_P_PHM_GIVEN_PHI_HUMAN()
 
-    # init autonomous controller.
+        # init autonomous controller.
 
-    # instantiate disamb algo
-    env_params = collections.OrderedDict()
-    env_params["all_mdp_env_params"] = mdp_env_params
-    env_params["robot_type"] = CartesianRobotType.R2
-    env_params["mode_set_type"] = ModeSetType.OneD
-    env_params["spatial_window_half_length"] = 3
-    env_params["phi_given_a_noise"] = 0.05
-    env_params["phm_given_phi_noise"] = 0.05
-    env_params["goal_poses"] = _generate_continuous_goal_poses(
-        mdp_env_params["all_goals"], mdp_env_params["cell_size"], world_bounds
-    )
-    env_params["mdp_list"] = mdp_list
-    disamb_algo = DiscreteMIDisambAlgo2D(env_params, "adnadnak")
-
-    # instantiate intent inference
-    ii_engine_params = collections.OrderedDict()
-    ii_engine_params["mdps_for_goals"] = mdp_list
-    # noise levels that atonomy THINKS human has.
-    ii_engine_params["phi_given_a_noise"] = 0.05
-    ii_engine_params["phm_given_phi_noise"] = 0.05
-
-    ii_engine = IntentInference(ii_engine_params)
-
-    # current_state = mdp_list[0].get_random_valid_state(is_not_goal=True)  # pick a random state to start off with
-
-    start_mode = np.random.randint(2) + 1  # either 1 or 2
-    current_state = _create_start_state(start_location, start_mode)
-    horizon = 100
-    min_num_steps_per_turn = 3
-    max_num_steps_per_turn = 6  # for human
-    steps_per_turn_counter = 0
-    num_steps_per_turn = random.randint(min_num_steps_per_turn, max_num_steps_per_turn)
-    p_vec = [1.0 / NUM_GOALS] * NUM_GOALS
-    human_sampled_goal_id = np.random.choice(NUM_GOALS, p=p_vec)
-    print("ALL GOALS ", mdp_env_params["all_goals"])
-    print("RANDOM GOAL CHOICE ", human_sampled_goal_id, mdp_env_params["all_goals"][human_sampled_goal_id])
-    print("Starting state", current_state)
-    print("Starting belief", ii_engine.get_current_p_g_given_phm())
-    previous_belief = ii_engine.get_current_p_g_given_phm()
-
-    import IPython
-
-    IPython.embed(banner1="check")
-    # instantiate autonomy policy. acting according to full 2D MDP without modes
-
-    # DISAMB
-    for t in range(horizon):
-        # USE human_mdp
-        if mdp_list[human_sampled_goal_id].check_if_state_coord_is_goal_state(current_state):
-            print("Reached goal")
-            break
-        a_sampled = mdp_list[human_sampled_goal_id].get_optimal_action(current_state, return_optimal=False)
-        # sampled corrupted interface level action corresponding to task-level action, could be None
-        phi = sample_phi_given_a_human(a_sampled, current_mode=current_state[-1])
-        # corrupted interface level action, could be None
-        phm = sample_phm_given_phi_human(phi)
-        # package all necessary information for inference engine
-        inference_info_dict = {}
-        inference_info_dict["phm"] = phm
-        inference_info_dict["state"] = current_state
-
-        ii_engine.perform_inference(inference_info_dict)
-        current_belief = ii_engine.get_current_p_g_given_phm()
-        print("Current state, a_sampled, phi, phm, belief", current_state, a_sampled, phi, phm, current_belief)
-        print("CHANGE IN ENTROPY, prev, curr", previous_belief, current_belief)
-        print(_compute_entropy(current_belief) - _compute_entropy(previous_belief))
-        previous_belief = copy.deepcopy(current_belief)
-        if not phm == "None":
-            a_applied = TRUE_INTERFACE_ACTION_TO_TASK_ACTION_MAP[phm]
-        else:
-            a_applied = "None"
-
-        next_state = mdp_list[human_sampled_goal_id].get_next_state_from_state_action(current_state, a_applied)
-
-        current_position = convert_discrete_state_to_continuous_position(
-            current_state, mdp_env_params["cell_size"], world_bounds
+        # instantiate disamb algo
+        env_params = collections.OrderedDict()
+        env_params["all_mdp_env_params"] = mdp_env_params
+        env_params["robot_type"] = CartesianRobotType.R2
+        env_params["mode_set_type"] = ModeSetType.OneD
+        env_params["spatial_window_half_length"] = 3
+        env_params["phi_given_a_noise"] = 0.1
+        env_params["phm_given_phi_noise"] = 0.1
+        env_params["goal_poses"] = _generate_continuous_goal_poses(
+            mdp_env_params["all_goals"], mdp_env_params["cell_size"], world_bounds
         )
-        print("CUrrent_Position", current_position)
-        steps_per_turn_counter += 1
-        if steps_per_turn_counter >= num_steps_per_turn:
-            steps_per_turn_counter = 0
-            num_steps_per_turn = random.randint(min_num_steps_per_turn, max_num_steps_per_turn)
-            current_belief_entropy = _compute_entropy(current_belief)
-            if current_belief_entropy > ENTROPY_THRESHOLD:
-                # perform disamb. get max local disamb state.
-                # teleport to that state. Continue.
-                local_max_disamb_state = disamb_algo.get_local_disamb_state(
-                    current_belief, current_state, current_position
-                )
-                print("DISAMB TRANSITION FROM TO", current_state, local_max_disamb_state)
-                next_state = local_max_disamb_state
+        env_params["mdp_list"] = mdp_list
+        env_params["kl_coeff"] = 0.5
+        env_params["dist_coeff"] = 0.5
+
+        disamb_algo = DiscreteMIDisambAlgo2D(env_params, "adnadnak")
+
+        # instantiate intent inference
+        ii_engine_params = collections.OrderedDict()
+        ii_engine_params["mdps_for_goals"] = mdp_list
+        # noise levels that atonomy THINKS human has.
+        ii_engine_params["phi_given_a_noise"] = 0.1
+        ii_engine_params["phm_given_phi_noise"] = 0.1
+
+        ii_engine = IntentInference(ii_engine_params)
+
+        # current_state = mdp_list[0].get_random_valid_state(is_not_goal=True)  # pick a random state to start off with
+
+        start_mode = np.random.randint(2) + 1  # either 1 or 2
+        current_state = _create_start_state(start_location, start_mode)
+        horizon = 100
+        min_num_steps_per_turn = 3
+        max_num_steps_per_turn = 6  # for human
+        steps_per_turn_counter = 0
+        num_steps_per_turn = random.randint(min_num_steps_per_turn, max_num_steps_per_turn)
+        p_vec = [1.0 / NUM_GOALS] * NUM_GOALS
+        human_sampled_goal_id = np.random.choice(NUM_GOALS, p=p_vec)
+        print("ALL GOALS ", mdp_env_params["all_goals"])
+        print("RANDOM GOAL CHOICE ", human_sampled_goal_id, mdp_env_params["all_goals"][human_sampled_goal_id])
+        print("Starting state", current_state)
+        print("Starting belief", ii_engine.get_current_p_g_given_phm())
+        previous_belief = ii_engine.get_current_p_g_given_phm()
+
+        # instantiate autonomy policy. acting according to full 2D MDP without modes
+
+        # DISAMB
+        for t in range(horizon):
+            # USE human_mdp
+            if mdp_list[human_sampled_goal_id].check_if_state_coord_is_goal_state(current_state):
+                print("Reached goal")
+                break
+            a_sampled = mdp_list[human_sampled_goal_id].get_optimal_action(current_state, return_optimal=False)
+            # sampled corrupted interface level action corresponding to task-level action, could be None
+            phi = sample_phi_given_a_human(a_sampled, current_mode=current_state[-1])
+            # corrupted interface level action, could be None
+            phm = sample_phm_given_phi_human(phi)
+            # package all necessary information for inference engine
+            inference_info_dict = {}
+            inference_info_dict["phm"] = phm
+            inference_info_dict["state"] = current_state
+
+            ii_engine.perform_inference(inference_info_dict)
+            current_belief = ii_engine.get_current_p_g_given_phm()
+            print(" ")
+            print("Current state, a_sampled, phi, phm, belief", current_state, a_sampled, phi, phm, current_belief)
+            # print("CHANGE IN ENTROPY, prev, curr", previous_belief, current_belief)
+            # print(_compute_entropy(current_belief) - _compute_entropy(previous_belief))
+            previous_belief = copy.deepcopy(current_belief)
+            if not phm == "None":
+                a_applied = TRUE_INTERFACE_ACTION_TO_TASK_ACTION_MAP[phm]
             else:
+                a_applied = "None"
 
-                inferred_goal_id = np.argmax(current_belief)
+            next_state = mdp_list[human_sampled_goal_id].get_next_state_from_state_action(current_state, a_applied)
 
-                autonomy_steps = random.randint(min_num_steps_per_turn, max_num_steps_per_turn)
-                ss = current_state[0:2]
-                opt_traj = autonomy_mdp_list[inferred_goal_id].get_optimal_trajectory_from_state(
-                    ss, horizon=autonomy_steps + 1, return_optimal=True
-                )
-                last_state = opt_traj[-1][-1]  # 2d
-                next_state = (last_state[0], last_state[1], current_state[-1])
-                import IPython
+            current_position = convert_discrete_state_to_continuous_position(
+                current_state, mdp_env_params["cell_size"], world_bounds
+            )
+            steps_per_turn_counter += 1
+            if steps_per_turn_counter >= num_steps_per_turn:
+                steps_per_turn_counter = 0
+                num_steps_per_turn = random.randint(min_num_steps_per_turn, max_num_steps_per_turn)
+                current_belief_entropy = _compute_entropy(current_belief)
+                if current_belief_entropy > ENTROPY_THRESHOLD:
+                    # perform disamb. get max local disamb state.
+                    # teleport to that state. Continue.
+                    local_max_disamb_state = disamb_algo.get_local_disamb_state(
+                        current_belief, current_state, current_position
+                    )
+                    print("DISAMB TRANSITION FROM TO", current_state, local_max_disamb_state)
+                    next_state = local_max_disamb_state
+                else:
 
-                IPython.embed(banner1="check direct")
-                # get inferred goal.
-                # get full 2d policy for inferred goal. keep current mode.
-                # simulate for fixed steps. Get final state. append current_mode. Update state.
+                    inferred_goal_id = np.argmax(current_belief)
 
-        current_state = next_state
-    import IPython
+                    autonomy_steps = random.randint(min_num_steps_per_turn, max_num_steps_per_turn)
+                    ss = current_state[0:2]
+                    opt_traj = autonomy_mdp_list[inferred_goal_id].get_optimal_trajectory_from_state(
+                        ss, horizon=autonomy_steps + 1, return_optimal=True
+                    )
+                    last_state = opt_traj[-1][-1]  # get last state from autonomy traj.
+                    # set next state as the last state from autonomy ttraj with same mode.
+                    next_state = (last_state[0], last_state[1], current_state[-1])
+                    print("CONTROL TRANSITION FROM TO", current_state, next_state, opt_traj)
 
-    IPython.embed(banner1="check")
+                    # get inferred goal.
+                    # get full 2d policy for inferred goal. keep current mode.
+                    # simulate for fixed steps. Get final state. append current_mode. Update state.
+            current_state = next_state
 
 
 # For human actions. The noise params can be different from what autonomy this the human is
@@ -576,5 +625,5 @@ def init_P_PHM_GIVEN_PHI_HUMAN():
 
 
 if __name__ == "__main__":
-    # generate_2d_disamb_heatmaps()
-    simulate_turn_taking_only_teleop()
+    generate_2d_disamb_heatmaps(prior=[0.5, 0.5, 0])
+    # simulate_turn_taking_only_teleop()
