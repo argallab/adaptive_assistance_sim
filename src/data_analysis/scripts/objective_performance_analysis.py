@@ -15,12 +15,12 @@ sys.path.append(os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir
 import itertools
 import scipy.stats as ss
 import statsmodels.api as sa
-from analysis_base_class import AnalysisBase
 import scikit_posthocs as sp
 import collections
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
+# matplotlib.rcParams["text.usetex"] = True
 
 RED_GOAL_INDEX = 0
 COLOR_LIST = {"control": "red", "disamb": "blue"}
@@ -92,6 +92,12 @@ class CompareAssistanceParadigms(object):
         autonomy_turn_start_indices, autonomy_turn_end_indices = self.autonomy_turn_markers_per_trial(df)
         human_turn_start_indices, human_turn_end_indices = self.human_turn_markers_per_trial(df)
 
+        total_human_turn_time_for_trial = 0.0
+        for human_turn_counter, (turn_start_ind, turn_end_ind) in enumerate(
+            zip(human_turn_start_indices, human_turn_end_indices)
+        ):
+            total_human_turn_time_for_trial += df["time"][turn_end_ind] - df["time"][turn_start_ind]
+
         assert (
             len(autonomy_turn_end_indices)
             == len(autonomy_turn_start_indices)
@@ -99,7 +105,7 @@ class CompareAssistanceParadigms(object):
             == len(human_turn_start_indices) - 1
         )
 
-        return len(human_turn_start_indices), len(autonomy_turn_start_indices)
+        return len(human_turn_start_indices), len(autonomy_turn_start_indices), total_human_turn_time_for_trial
 
     def compute_mode_switches(self, df):
         autonomy_turn_start_indices, autonomy_turn_end_indices = self.autonomy_turn_markers_per_trial(df)
@@ -179,9 +185,85 @@ class CompareAssistanceParadigms(object):
         times_at_which_autonomy_turn_ends = [df["time"][i] - start_time_sec for i in autonomy_turn_end_indices]
         return pg_red, start_time_sec, end_time_sec, times_at_which_autonomy_turn_ends, weighted_time
 
+    def compute_alpha(self, df):
+        human_turn_start_indices, human_turn_end_indices = self.human_turn_markers_per_trial(df)
+        human_alpha_assistance_percentage_per_turn_dict = collections.defaultdict(list)
+        human_alpha_assistance_to_correct_goal_dict = collections.defaultdict(list)
+        human_average_alpha_value_to_correct_goal_per_turn_dict = collections.defaultdict(list)
+
+        # fill in Nans
+        df["inferred_goal_str"].fillna(method="ffill", inplace=True)
+        df["alpha_val"].fillna(method="ffill", inplace=True)
+        for human_turn_counter, (turn_start_ind, turn_end_ind) in enumerate(
+            zip(human_turn_start_indices, human_turn_end_indices)
+        ):
+            alpha_assistance_for_turn = df["alpha_val"][turn_start_ind:turn_end_ind]
+            inference_for_turn = df["inferred_goal_str"][turn_start_ind:turn_end_ind]
+            assert len(alpha_assistance_for_turn) == len(inference_for_turn)
+
+            inds_for_positive_alpha_for_turn = alpha_assistance_for_turn[alpha_assistance_for_turn > 0.0].index.tolist()
+            inds_for_correct_inference_for_turn = inference_for_turn[inference_for_turn == "goal_0"].index.tolist()
+
+            inds_for_positive_alpha_for_correct_inference_for_turn = list(
+                set(inds_for_correct_inference_for_turn).intersection(set(inds_for_positive_alpha_for_turn))
+            )
+
+            alpha_assistance_positive_to_correct_goal_for_turn = alpha_assistance_for_turn[
+                inds_for_positive_alpha_for_correct_inference_for_turn
+            ]
+
+            # percentage of time during the turn assistance was present towards correct goal
+            alpha_assistance_percentage_per_turn = len(alpha_assistance_positive_to_correct_goal_for_turn) / len(
+                alpha_assistance_for_turn
+            )
+            assert alpha_assistance_percentage_per_turn >= 0.0 and alpha_assistance_percentage_per_turn <= 1.0
+            # average alpha value when assistance was provided to correct goal
+            if len(alpha_assistance_positive_to_correct_goal_for_turn) > 0:
+                average_alpha_value_to_correct_goal_per_turn = np.nanmean(
+                    alpha_assistance_positive_to_correct_goal_for_turn.values
+                )
+            else:
+                average_alpha_value_to_correct_goal_per_turn = 0.0
+
+            human_alpha_assistance_percentage_per_turn_dict[human_turn_counter].append(
+                alpha_assistance_percentage_per_turn
+            )
+            human_alpha_assistance_to_correct_goal_dict[human_turn_counter].append(
+                alpha_assistance_positive_to_correct_goal_for_turn
+            )
+            human_average_alpha_value_to_correct_goal_per_turn_dict[human_turn_counter].append(
+                average_alpha_value_to_correct_goal_per_turn
+            )
+
+        # percetage of time assistance to correct goal was present in the last turn
+        assistance_percentage_in_last_turn_to_correct_goal = human_alpha_assistance_percentage_per_turn_dict[
+            human_turn_counter
+        ][0]
+        assistance_val_in_last_turn_to_correct_goal = human_average_alpha_value_to_correct_goal_per_turn_dict[
+            human_turn_counter
+        ][0]
+        # percentage of time (of human turns) assistance was present to the correct goal
+        average_assistance_to_correct_goal_for_trial = np.mean(
+            list(human_alpha_assistance_percentage_per_turn_dict.values())
+        )
+        average_alpha_val_to_correct_goal_for_trial = np.mean(
+            list(human_average_alpha_value_to_correct_goal_per_turn_dict.values())
+        )
+
+        return (
+            assistance_percentage_in_last_turn_to_correct_goal,
+            assistance_val_in_last_turn_to_correct_goal,
+            average_assistance_to_correct_goal_for_trial,
+            average_alpha_val_to_correct_goal_for_trial,
+            human_alpha_assistance_percentage_per_turn_dict,
+            human_average_alpha_value_to_correct_goal_per_turn_dict,
+            human_alpha_assistance_to_correct_goal_dict,
+        )
+
     def compute_metric(self, metric, f, condition_type):
         df = pd.read_csv(f, header=0)
-
+        success = df.inferred_goal_str.dropna().values[-1] == "goal_0"
+        print()
         if metric == "mode_switches":
             (
                 human_mode_switches_for_trial,
@@ -197,8 +279,12 @@ class CompareAssistanceParadigms(object):
             }
 
         elif metric == "num_turns":
-            human_num_turns, autonomy_num_turns = self.compute_num_turns(df)
-            metric_dict = {"human_num_turns": human_num_turns, "autonomy_num_turns": autonomy_num_turns}
+            human_num_turns, autonomy_num_turns, total_human_turn_time_for_trial = self.compute_num_turns(df)
+            metric_dict = {
+                "human_num_turns": human_num_turns,
+                "autonomy_num_turns": autonomy_num_turns,
+                "total_human_turn_time_for_trial": total_human_turn_time_for_trial,
+            }
 
         elif metric == "time":
             trial_time_full, trial_time_minus_computation = self.compute_trial_time(df, f)
@@ -222,7 +308,27 @@ class CompareAssistanceParadigms(object):
                 "times_at_which_autonomy_turn_ends": times_at_which_autonomy_turn_ends,
                 "weighted_time": weighted_time,
             }
-        return metric_dict
+        elif metric == "alpha_assistance":
+            (
+                assistance_percentage_in_last_turn_to_correct_goal,
+                assistance_val_in_last_turn_to_correct_goal,
+                average_assistance_to_correct_goal_for_trial,
+                average_alpha_val_to_correct_goal_for_trial,
+                human_alpha_assistance_percentage_per_turn_dict,
+                human_average_alpha_value_to_correct_goal_per_turn_dict,
+                human_alpha_assistance_to_correct_goal_dict,
+            ) = self.compute_alpha(df)
+            metric_dict = {
+                "assistance_percentage_in_last_turn_to_correct_goal": assistance_percentage_in_last_turn_to_correct_goal,
+                "assistance_val_in_last_turn_to_correct_goal": assistance_val_in_last_turn_to_correct_goal,
+                "average_assistance_to_correct_goal_for_trial": average_assistance_to_correct_goal_for_trial,
+                "average_alpha_val_to_correct_goal_for_trial": average_alpha_val_to_correct_goal_for_trial,
+                "human_alpha_assistance_percentage_per_turn_dict": human_alpha_assistance_percentage_per_turn_dict,
+                "human_average_alpha_value_to_correct_goal_per_turn_dict": human_average_alpha_value_to_correct_goal_per_turn_dict,
+                "human_alpha_assistance_to_correct_goal_dict": human_alpha_assistance_to_correct_goal_dict,
+            }
+
+        return metric_dict, success, df.inferred_goal_str.dropna().values[-1]
 
     def check_if_file_meets_analysis_condition(self):
         return True
@@ -237,13 +343,14 @@ class CompareAssistanceParadigms(object):
             self.trial_name_info = f.split("_")  # split up string info contained in the file name
             # get the index that contains the word assistance, minus one to get the assistance type
             condition_type = self.trial_name_info[1]  #'control or 'disamb'
-            if not self.check_if_file_meets_analysis_condition():
-                continue
             # if not self.trial_name_info[0] in ["l02"]:
             #     continue
             print("filename", f)
-            metric_dict = self.compute_metric(metric, self.files_path_list[i], condition_type)
-
+            metric_dict, success, last_inferred_goal = self.compute_metric(
+                metric, self.files_path_list[i], condition_type
+            )
+            metric_dict_all_trials[condition_type + "_success"].append(success)
+            metric_dict_all_trials[condition_type + "_last_inferred_goal"].append(last_inferred_goal)
             if metric == "mode_switches":
                 metric_dict_all_trials[condition_type + "_human_mode_switches"].append(
                     metric_dict["human_mode_switches_for_trial"]
@@ -254,6 +361,9 @@ class CompareAssistanceParadigms(object):
             elif metric == "num_turns":
                 metric_dict_all_trials[condition_type + "_human_num_turns"].append(metric_dict["human_num_turns"])
                 metric_dict_all_trials[condition_type + "_autonomy_num_turns"].append(metric_dict["autonomy_num_turns"])
+                metric_dict_all_trials[condition_type + "_total_human_turn_time_for_trial"].append(
+                    metric_dict["total_human_turn_time_for_trial"]
+                )
 
             elif metric == "time":
                 metric_dict_all_trials[condition_type + "_trial_time_full"].append(metric_dict["trial_time_full"])
@@ -268,6 +378,19 @@ class CompareAssistanceParadigms(object):
                     metric_dict["times_at_which_autonomy_turn_ends"]
                 )
                 metric_dict_all_trials[condition_type + "_weighted_time"].append(metric_dict["weighted_time"])
+            elif metric == "alpha_assistance":
+                metric_dict_all_trials[condition_type + "_alpha_assistance"].append(
+                    metric_dict["average_assistance_to_correct_goal_for_trial"]
+                )
+                metric_dict_all_trials[condition_type + "_alpha_val"].append(
+                    metric_dict["average_alpha_val_to_correct_goal_for_trial"]
+                )
+                metric_dict_all_trials[condition_type + "_last_turn_alpha_assistance"].append(
+                    metric_dict["assistance_percentage_in_last_turn_to_correct_goal"]
+                )
+                metric_dict_all_trials[condition_type + "_last_turn_alpha_val"].append(
+                    metric_dict["assistance_val_in_last_turn_to_correct_goal"]
+                )
 
         return metric_dict_all_trials
 
@@ -284,8 +407,14 @@ class CompareAssistanceParadigms(object):
         return df
 
     def data_analysis(self):
-        for metric in ["true_goal_probability_gain"]:
+        for metric in ["num_turns"]:
             metric_dict_all_trials = self.group_per_metric(metric)
+            print(
+                "SUCCESS CONTROL DISMAB",
+                sum(metric_dict_all_trials["control_success"]) / len(metric_dict_all_trials["control_success"]),
+                sum(metric_dict_all_trials["disamb_success"]) / len(metric_dict_all_trials["disamb_success"]),
+            )
+
             if metric == "mode_switches":
                 data = [
                     metric_dict_all_trials["control_human_mode_switches"],
@@ -299,6 +428,12 @@ class CompareAssistanceParadigms(object):
                 ]
                 print("NUM TURNS - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
                 self.parametric_anova_with_post_hoc(data, metric)
+                data = [
+                    metric_dict_all_trials["control_total_human_turn_time_for_trial"],
+                    metric_dict_all_trials["disamb_total_human_turn_time_for_trial"],
+                ]
+                print("HUMAN OPERATING TIME - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
+                self.parametric_anova_with_post_hoc(data, "human_operating_time")
             elif metric == "time":
                 data = [
                     metric_dict_all_trials["control_trial_time_minus_computation"],
@@ -327,7 +462,28 @@ class CompareAssistanceParadigms(object):
                     metric_dict_all_trials["disamb_weighted_time"],
                 ]
                 print("NUM TURNS - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
+            elif metric == "alpha_assistance":
+
+                data = [
+                    100.0 * np.array(metric_dict_all_trials["control_alpha_assistance"]),
+                    100.0 * np.array(metric_dict_all_trials["disamb_alpha_assistance"]),
+                ]
+                print("ASSISTANCE PERCENTAGE - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
                 self.parametric_anova_with_post_hoc(data, metric)
+                data = [
+                    metric_dict_all_trials["control_alpha_val"],
+                    metric_dict_all_trials["disamb_alpha_val"],
+                ]
+                print("ASSISTANCE STRENGTH - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
+                self.parametric_anova_with_post_hoc(data, "alpha_val")
+                # data = [
+                #     metric_dict_all_trials["control_last_turn_alpha_assistance"],
+                #     metric_dict_all_trials["disamb_last_turn_alpha_assistance"],
+                # ]
+                # data = [
+                #     metric_dict_all_trials["control_last_turn_alpha_val"],
+                #     metric_dict_all_trials["disamb_last_turn_alpha_val"],
+                # ]
 
     def plot_true_goal_probability_gains(
         self, pg_red_list, start_time_sec_list, end_time_sec_list, times_at_which_autonomy_turn_ends_list, condition
@@ -344,6 +500,10 @@ class CompareAssistanceParadigms(object):
 
     def plot_with_significance(self, df, metric, *args, **kwargs):
 
+        font_size_dict = {"alpha_val": 18, "alpha_assistance": 18, "human_operating_time": 18, "num_turns": 18}
+        p_star_delta_dict = {"alpha_val": 0.1, "alpha_assistance": 0.1, "human_operating_time": 0.01, "num_turns": 0.1}
+        text_offset = {"alpha_val": 0.01, "alpha_assistance": 0.01, "human_operating_time": 0.01, "num_turns": 0.01}
+
         pairs = kwargs.get("pairs", None)
         p_values = kwargs.get("p_values", None)
 
@@ -355,7 +515,7 @@ class CompareAssistanceParadigms(object):
 
         ax = sns.boxplot(x=df["condition"], y=df[metric])
         ax = sns.swarmplot(x=df["condition"], y=df[metric], color=".4")
-        font_size = 20
+        font_size = font_size_dict[metric]
         ax.tick_params(labelsize=font_size)
 
         plt.subplots_adjust(left=0.17)
@@ -363,8 +523,8 @@ class CompareAssistanceParadigms(object):
 
         # If significance exists, plot it
         if not pairs == None:
-            y_min = round(df[metric].max())  # get maximum data value (max y)
-            h = y_min * 0.1
+            y_min = df[metric].max()  # get maximum data value (max y)
+            h = y_min * p_star_delta_dict[metric]
             y_min = y_min + h
 
             sig_text = []
@@ -378,17 +538,15 @@ class CompareAssistanceParadigms(object):
 
             # get y position for all the p-value pairs based on location and significacne
             sig_df = pd.DataFrame({"pair": pairs, "p_value": p_values, "text": sig_text})
-            sig_df = sig_df.sort_values(
-                by=["pair"]
-            )  # sort so it looks neat when plotting. convert to data frame so can get sig_text with the pairs after sorting
+            # sort so it looks neat when plotting. convert to data frame so can get sig_text with the pairs after sorting
+            sig_df = sig_df.sort_values(by=["pair"])
             sig_df.reset_index(drop=True, inplace=True)  # reindex after sorting
 
             for i in range(len(pairs)):
                 y_pos = [y_min + (h * i)] * 2  # start and end is same height so *2
-                text_pos_x = (
-                    sum(sig_df.loc[i, "pair"]) / 2
-                )  # text position should be in the center of the line connecting the pairs
-                text_pos_y = y_min + (h * i) + 0.25
+                # text position should be in the center of the line connecting the pairs
+                text_pos_x = sum(sig_df.loc[i, "pair"]) / 2
+                text_pos_y = y_min + (h * i) + text_offset[metric]
                 plt.plot(sig_df.loc[i, "pair"], y_pos, lw=2, c="k")
                 plt.text(
                     text_pos_x,
@@ -412,10 +570,16 @@ class CompareAssistanceParadigms(object):
             plt.ylabel("Average Intervention Counts", fontsize=font_size)
         elif metric == "success":
             plt.ylabel("Percentage of Successful Trials (%)", fontsize=font_size)
-        elif metric == "distance":
-            plt.ylabel("Distance to Goal", fontsize=font_size)
+        elif metric == "human_operating_time":
+            plt.ylabel("Operating Time Per Trial for Humans (s)", fontsize=font_size)
         elif metric == "num_turns":
             plt.ylabel("Number of Human Turns Per Trial", fontsize=font_size)
+        elif metric == "alpha_val":
+            plt.ylabel("Strength of Autonomy Assistance", fontsize=font_size)
+            plt.ylim(0.0, 1.0)
+        elif metric == "alpha_assistance":
+            plt.ylabel("Autonomy Assistance Engagement (%)", fontsize=font_size)
+            plt.ylim(0.0, 100.0)
 
         plt.show()
 
@@ -447,6 +611,7 @@ class CompareAssistanceParadigms(object):
         H, p = ss.kruskal(*data)
         # if can reject null hypothesis that population medians of all groups are equel,
         if p <= self.alpha:
+            print("P_VALUE", p)
             # do posthoc test to learn which groups differ in their medians
             pairs, p_values = self.get_significant_pairs(df, metric)
             self.plot_with_significance(df, metric, pairs=pairs, p_values=p_values)
