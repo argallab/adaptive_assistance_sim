@@ -260,6 +260,54 @@ class CompareAssistanceParadigms(object):
             human_alpha_assistance_to_correct_goal_dict,
         )
 
+    def compute_ratio_of_work(self, df, f):
+        autonomy_turn_start_indices, autonomy_turn_end_indices = self.autonomy_turn_markers_per_trial(df)
+        human_turn_start_indices, human_turn_end_indices = self.human_turn_markers_per_trial(df)
+        algo_computation_start_indices, algo_computation_end_indices = self.algo_computation_markers_per_trial(df)
+        if os.path.split(f)[1] == "l03_disamb_2_16.csv":
+            # manually insert a missing 'before'
+            algo_computation_start_indices.insert(3, autonomy_turn_start_indices[3] + 2)
+
+        assert (
+            len(algo_computation_start_indices)
+            == len(algo_computation_end_indices)
+            == len(autonomy_turn_start_indices)
+            == len(autonomy_turn_end_indices)
+        )
+
+        # total computation time - to be redcued from autonomy time
+        computation_time = 0.0
+        # accumulate the computation time for entire trial by summing up the computation time for each turn
+        for algo_rep, (algo_start_idx, algo_end_idx) in enumerate(
+            zip(algo_computation_start_indices, algo_computation_end_indices)
+        ):
+            computation_time += df["time"][algo_end_idx] - df["time"][algo_start_idx]
+
+        # compute total human time
+        total_human_turn_time_for_trial = 0.0
+        for human_turn_counter, (turn_start_ind, turn_end_ind) in enumerate(
+            zip(human_turn_start_indices, human_turn_end_indices)
+        ):
+            total_human_turn_time_for_trial += df["time"][turn_end_ind] - df["time"][turn_start_ind]
+
+        # compute total autonomy time.
+        total_autonomy_turn_time_for_trial = 0.0
+        for autonomy_turn_counter, (turn_start_ind, turn_end_ind) in enumerate(
+            zip(autonomy_turn_start_indices, autonomy_turn_end_indices)
+        ):
+            total_autonomy_turn_time_for_trial += df["time"][turn_end_ind] - df["time"][turn_start_ind]
+
+        total_autonomy_turn_time_for_trial = total_autonomy_turn_time_for_trial - computation_time
+        assert total_autonomy_turn_time_for_trial >= 0.0
+
+        ratio_of_work = total_human_turn_time_for_trial / total_autonomy_turn_time_for_trial
+        ratio_of_total_work = total_human_turn_time_for_trial / (
+            total_human_turn_time_for_trial + total_autonomy_turn_time_for_trial
+        )
+        # compute ratio human to autonomy. 1.0, means = equal share. < 1.0 is good, more than one means human had to work more
+
+        return ratio_of_work, ratio_of_total_work
+
     def compute_metric(self, metric, f, condition_type):
         df = pd.read_csv(f, header=0)
         success = df.inferred_goal_str.dropna().values[-1] == "goal_0"
@@ -327,6 +375,9 @@ class CompareAssistanceParadigms(object):
                 "human_average_alpha_value_to_correct_goal_per_turn_dict": human_average_alpha_value_to_correct_goal_per_turn_dict,
                 "human_alpha_assistance_to_correct_goal_dict": human_alpha_assistance_to_correct_goal_dict,
             }
+        elif metric == "ratio_of_work":
+            ratio_of_work, ratio_of_total_work = self.compute_ratio_of_work(df, f)
+            metric_dict = {"ratio_of_work": ratio_of_work, "ratio_of_total_work": ratio_of_total_work}
 
         return metric_dict, success, df.inferred_goal_str.dropna().values[-1]
 
@@ -351,6 +402,9 @@ class CompareAssistanceParadigms(object):
             )
             metric_dict_all_trials[condition_type + "_success"].append(success)
             metric_dict_all_trials[condition_type + "_last_inferred_goal"].append(last_inferred_goal)
+            if not success:
+                continue
+
             if metric == "mode_switches":
                 metric_dict_all_trials[condition_type + "_human_mode_switches"].append(
                     metric_dict["human_mode_switches_for_trial"]
@@ -391,7 +445,11 @@ class CompareAssistanceParadigms(object):
                 metric_dict_all_trials[condition_type + "_last_turn_alpha_val"].append(
                     metric_dict["assistance_val_in_last_turn_to_correct_goal"]
                 )
-
+            elif metric == "ratio_of_work":
+                metric_dict_all_trials[condition_type + "_ratio_of_work"].append(metric_dict["ratio_of_work"])
+                metric_dict_all_trials[condition_type + "_ratio_of_total_work"].append(
+                    metric_dict["ratio_of_total_work"]
+                )
         return metric_dict_all_trials
 
     def create_dataframe(self, data, metric):
@@ -407,7 +465,7 @@ class CompareAssistanceParadigms(object):
         return df
 
     def data_analysis(self):
-        for metric in ["num_turns"]:
+        for metric in ["ratio_of_work"]:
             metric_dict_all_trials = self.group_per_metric(metric)
             print(
                 "SUCCESS CONTROL DISMAB",
@@ -420,6 +478,7 @@ class CompareAssistanceParadigms(object):
                     metric_dict_all_trials["control_human_mode_switches"],
                     metric_dict_all_trials["disamb_human_mode_switches"],
                 ]
+                print("MODE SWITCHES - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
                 self.parametric_anova_with_post_hoc(data, metric)
             elif metric == "num_turns":
                 data = [
@@ -484,6 +543,13 @@ class CompareAssistanceParadigms(object):
                 #     metric_dict_all_trials["control_last_turn_alpha_val"],
                 #     metric_dict_all_trials["disamb_last_turn_alpha_val"],
                 # ]
+            elif metric == "ratio_of_work":
+                data = [
+                    np.array(metric_dict_all_trials["control_ratio_of_total_work"]),
+                    np.array(metric_dict_all_trials["disamb_ratio_of_total_work"]),
+                ]
+                print("RATIO OF WORK - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
+                self.parametric_anova_with_post_hoc(data, metric)
 
     def plot_true_goal_probability_gains(
         self, pg_red_list, start_time_sec_list, end_time_sec_list, times_at_which_autonomy_turn_ends_list, condition
@@ -500,9 +566,33 @@ class CompareAssistanceParadigms(object):
 
     def plot_with_significance(self, df, metric, *args, **kwargs):
 
-        font_size_dict = {"alpha_val": 18, "alpha_assistance": 18, "human_operating_time": 18, "num_turns": 18}
-        p_star_delta_dict = {"alpha_val": 0.1, "alpha_assistance": 0.1, "human_operating_time": 0.01, "num_turns": 0.1}
-        text_offset = {"alpha_val": 0.01, "alpha_assistance": 0.01, "human_operating_time": 0.01, "num_turns": 0.01}
+        font_size_dict = {
+            "time": 18,
+            "alpha_val": 18,
+            "alpha_assistance": 18,
+            "human_operating_time": 18,
+            "num_turns": 18,
+            "mode_switches": 18,
+            "ratio_of_work": 18,
+        }
+        p_star_delta_dict = {
+            "time": 0.1,
+            "alpha_val": 0.1,
+            "alpha_assistance": 0.1,
+            "human_operating_time": 0.01,
+            "num_turns": 0.1,
+            "mode_switches": 0.08,
+            "ratio_of_work": 0.01,
+        }
+        text_offset = {
+            "time": 0.01,
+            "alpha_val": 0.01,
+            "alpha_assistance": 0.01,
+            "human_operating_time": 0.01,
+            "num_turns": 0.01,
+            "mode_switches": 0.01,
+            "ratio_of_work": 0.005,
+        }
 
         pairs = kwargs.get("pairs", None)
         p_values = kwargs.get("p_values", None)
@@ -564,8 +654,8 @@ class CompareAssistanceParadigms(object):
         if metric == "time":
             plt.ylabel("Total Trial Time (s)", fontsize=font_size)
         elif metric == "mode_switches":
-            plt.ylabel("Successful Trial Mode Switch Count", fontsize=font_size)
-            plt.ylim(0, 30)
+            plt.ylabel("Number of Mode Switches Per Trial", fontsize=font_size)
+            plt.ylim(0, 25)
         elif metric == "corrections":
             plt.ylabel("Average Intervention Counts", fontsize=font_size)
         elif metric == "success":
@@ -580,6 +670,9 @@ class CompareAssistanceParadigms(object):
         elif metric == "alpha_assistance":
             plt.ylabel("Autonomy Assistance Engagement (%)", fontsize=font_size)
             plt.ylim(0.0, 100.0)
+        elif metric == "ratio_of_work":
+            plt.ylabel("Normalized Human Operating Time Per Trial", fontsize=font_size)
+            plt.ylim(0.6, 1.1)
 
         plt.show()
 
