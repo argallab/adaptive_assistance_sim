@@ -47,6 +47,7 @@ class PostTaskLikertAnalysis(object):
             "Q7",
             "Q8",
             "Q10",
+            "Q12",
             "Q13",
             "Q14",
         ]  # Q12 IS THE OPTIONAL QUESTION NOT LIKERT
@@ -91,6 +92,10 @@ class PostTaskLikertAnalysis(object):
             "Strongly Disagree": -3,
         }
         self.conditions = ["Control", "Disamb"]
+
+        import IPython
+
+        IPython.embed(banner1="check")
 
     def skip_ids(self):
         # Id's to skip (test id's, manual cleaning)
@@ -153,32 +158,29 @@ class PostTaskLikertAnalysis(object):
             df = pd.concat([df, cond_df], join="inner")
             df.reset_index(drop=True, inplace=True)
 
-        import IPython
-
-        IPython.embed(banner1="chec")
         # TODO add mean plotting function.
         self.plot_stacked_horizontal_bar_plot(df)
 
-    def plot_mean_rank_horizontal_bar_plot(self, responses, num_resp, title):
+    # def plot_mean_rank_horizontal_bar_plot(self, responses, num_resp, title):
 
-        plt.rcdefaults()
-        fig, ax = plt.subplots()
+    #     plt.rcdefaults()
+    #     fig, ax = plt.subplots()
 
-        x_data = np.mean(responses, axis=1)
-        error = np.std(responses, axis=1) / num_resp
-        x_pos = self.label_to_score.values()
-        y_pos = np.arange(len(self.question_text))
+    #     x_data = np.mean(responses, axis=1)
+    #     error = np.std(responses, axis=1) / num_resp
+    #     x_pos = self.label_to_score.values()
+    #     y_pos = np.arange(len(self.question_text))
 
-        ax.barh(y_pos, x_data, xerr=error, align="center")
-        ax.set_yticks(y_pos)
-        ax.set_yticklabels(self.question_text)
-        # ax.set_yticklabels(self.question_num)
-        ax.invert_yaxis()  # labels read top-to-bottom
-        ax.set_xticks(x_pos)
-        ax.set_xticklabels(self.label_to_score.keys())
-        ax.set_title(title)
+    #     ax.barh(y_pos, x_data, xerr=error, align="center")
+    #     ax.set_yticks(y_pos)
+    #     ax.set_yticklabels(self.question_text)
+    #     # ax.set_yticklabels(self.question_num)
+    #     ax.invert_yaxis()  # labels read top-to-bottom
+    #     ax.set_xticks(x_pos)
+    #     ax.set_xticklabels(self.label_to_score.keys())
+    #     ax.set_title(title)
 
-        plt.show()
+    #     plt.show()
 
     def plot_stacked_horizontal_bar_plot(self, df):
 
@@ -186,27 +188,40 @@ class PostTaskLikertAnalysis(object):
         sns.set_context("paper")
         sns.set_palette("colorblind")
 
-        # df["question"] = df["question"].replace(
-        #     "The robot (red circle) was easy for me to operate.", "The robot was easy for me to operate."
-        # )
-        # df["question"] = df["question"].replace(
-        #     "It was easy for me to issue my intended commands.", "It was easy to issue my intended commands."
-        # )
-        # df["question"] = df["question"].replace(
-        #     "The autonomous assistance helped me complete the task more efficiently. ",
-        #     "The autonomous assistance helped me \n complete the task more effeciently.",
-        # )
-        # df["question"] = df["question"].replace(
-        #     "The autonomous assistance helped me to reduce unwanted mode switches. ",
-        #     "The autonomous assistance helped me \n reduce unwanted mode switches.",
-        # )
+        df["question"] = df["question"].replace(
+            "After HAL's turn, HAL was able to figure out where I wanted to go much more easily",
+            "Autonomy was able to figure out when \n I wanted to go more easily after its turn.",
+        )
+
+        df["question"] = df["question"].replace(
+            "HAL helped me move the robot towards the desired goal more effectively after HAL's turn.",
+            "Autonomy helped me move the robot towards \n the desired goal more effectively after its turn.",
+        )
+        df["question"] = df["question"].replace(
+            "It was much easier to move towards the desired goal after the HAL's turn",
+            "It was much easier to move towards the \n desired goal after the autonomy's turn",
+        )
+        df["question"] = df["question"].replace(
+            "I did not have to perform too many mode switches after the robot's turn.",
+            "I did not have to perform too many mode \n switches after the autonomy's turn.",
+        )
+        df["question"] = df["question"].replace(
+            "HAL's assistance helped me complete the task more efficiently.",
+            "Autonomy's assistance helped me complete \n the task more efficiently.",
+        )
         ax = sns.barplot(x="score", y="question", hue="condition", data=df)
 
-        font_size = 20
-        ax.tick_params(labelsize="xx-large")
+        font_size = 12
+        x_pos = list(self.label_to_score.values())
+        x_pos.reverse()
+        ax.set_xticks(x_pos[2:-1])
+        ax.tick_params(labelsize="medium")
+
+        x_tick_labels = list(self.label_to_score.keys())
+        x_tick_labels.reverse()
 
         # TO DO: use gloabl var
-        ax.set_xticklabels(["Strongly Disagree", "Disagree", "Neutral", "Somewhat Agree", "Agree", "Strongly Agree"])
+        ax.set_xticklabels(x_tick_labels[2:-1])
         plt.xlabel("")
         plt.ylabel("")
         plt.subplots_adjust(left=0.49)
@@ -253,3 +268,25 @@ if __name__ == "__main__":
 # Q12 : (OPTIONAL) Please add any thoughts you might have about the nature of interaction with HAL as well how HAL tried to help you.
 # Q13 : I feel proficient in controlling the robot using this interface.
 # Q14 : I feel proficient in controlling the robot with HAL's assistance
+
+# QZZQQZ
+
+# "Overall, HAL was very helpful in reducing mode switches and completing the task with less effort.
+# There were times when HAL moved me away from the goal, but this usually occurred in the presence of other goals,
+# so the mistake was not unexpected and it did not hurt my ability to complete the task. The assistance during my turn was particularly helpful.
+#  Sometimes, I found myself taking a direct path to the goal without even giving a translation command thanks to HAL's assistance"
+
+# "HAL was very helpful in reducing the difficulty of the task and the number of turns, however,
+# I felt like I needed to do an extra mode switch on occasion to reach the goal after HAL's turn"
+
+#'The overall interaction with HAL was positive. HAL did help me get close to the goal, but then it would start overshooting
+# the goal or move towards the wrong goals during the trials. This sometimes happened during consecutive turns'
+
+#'HAL was helpful in getting me to the goal in initial stages, but once the robot was close to the goal,
+# it would be confused by other goals and even continue to move the robot towards those other goals, even though I was trying to move away from it'
+
+#'HAL was helpful in getting close to the goal and reducing mode switches. Less mistakes were made,
+# and it was easier to make fine adjustments once the robot got close to the goal. The occasional mode switch was needed for these fine adjustments however'
+
+#'HAL was helpful when there were no other goals (blue/green) between my (red) goal and the robot. HAL did seem to get confused
+# when these goals were close to each other. It sometimes moved the robot towards an undesirable goal even though my commands were not in the direction of that goal'
