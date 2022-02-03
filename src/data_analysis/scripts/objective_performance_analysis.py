@@ -36,9 +36,9 @@ class CompareAssistanceParadigms(object):
         self.data_dir = os.path.join(self.directory_path, "parsed_trial_data")
         print(self.data_dir)
         self.get_recursive_folders()
-        self.labels = ["Control", "Disamb"]
+        self.labels = ["Control", "Disambiguation"]
         self.assistance_cond = ["control", "disamb"]
-        self.label_to_plot_pos = {"Control": 0, "Disamb": 1}
+        self.label_to_plot_pos = {"Control": 0, "Disambiguation": 1}
         self.v_strong_alpha = 0.001
         self.strong_alpha = 0.01
         self.alpha = 0.05
@@ -402,8 +402,8 @@ class CompareAssistanceParadigms(object):
             )
             metric_dict_all_trials[condition_type + "_success"].append(success)
             metric_dict_all_trials[condition_type + "_last_inferred_goal"].append(last_inferred_goal)
-            if not success:
-                continue
+            # if not success:
+            #     continue
 
             if metric == "mode_switches":
                 metric_dict_all_trials[condition_type + "_human_mode_switches"].append(
@@ -465,7 +465,7 @@ class CompareAssistanceParadigms(object):
         return df
 
     def data_analysis(self):
-        for metric in ["ratio_of_work"]:
+        for metric in ["alpha_assistance"]:
             metric_dict_all_trials = self.group_per_metric(metric)
             print(
                 "SUCCESS CONTROL DISMAB",
@@ -474,6 +474,12 @@ class CompareAssistanceParadigms(object):
             )
 
             if metric == "mode_switches":
+                metric_dict_all_trials["control_human_mode_switches"] = [
+                    e for e in metric_dict_all_trials["control_human_mode_switches"] if e <= 10
+                ]
+                metric_dict_all_trials["disamb_human_mode_switches"] = [
+                    e for e in metric_dict_all_trials["disamb_human_mode_switches"] if e <= 10
+                ]
                 data = [
                     metric_dict_all_trials["control_human_mode_switches"],
                     metric_dict_all_trials["disamb_human_mode_switches"],
@@ -481,12 +487,20 @@ class CompareAssistanceParadigms(object):
                 print("MODE SWITCHES - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
                 self.parametric_anova_with_post_hoc(data, metric)
             elif metric == "num_turns":
+                metric_dict_all_trials["control_human_num_turns"] = [
+                    e for e in metric_dict_all_trials["control_human_num_turns"] if e <= 10
+                ]
+                metric_dict_all_trials["disamb_human_num_turns"] = [
+                    e for e in metric_dict_all_trials["disamb_human_num_turns"] if e <= 10
+                ]
                 data = [
                     metric_dict_all_trials["control_human_num_turns"],
                     metric_dict_all_trials["disamb_human_num_turns"],
                 ]
-                print("NUM TURNS - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
-                self.parametric_anova_with_post_hoc(data, metric)
+                print(
+                    "NUM TURNS - CONTROl, DISAMB", np.mean(data[0]), np.std(data[0]), np.mean(data[1]), np.std(data[1])
+                )
+                self.parametric_anova_with_post_hoc(data, "num_turns")
                 data = [
                     metric_dict_all_trials["control_total_human_turn_time_for_trial"],
                     metric_dict_all_trials["disamb_total_human_turn_time_for_trial"],
@@ -494,6 +508,12 @@ class CompareAssistanceParadigms(object):
                 print("HUMAN OPERATING TIME - CONTROl, DISAMB", np.mean(data[0]), np.mean(data[1]))
                 self.parametric_anova_with_post_hoc(data, "human_operating_time")
             elif metric == "time":
+                metric_dict_all_trials["control_trial_time_minus_computation"] = [
+                    e for e in metric_dict_all_trials["control_trial_time_minus_computation"] if e <= 100
+                ]
+                metric_dict_all_trials["disamb_trial_time_minus_computation"] = [
+                    e for e in metric_dict_all_trials["disamb_trial_time_minus_computation"] if e <= 100
+                ]
                 data = [
                     metric_dict_all_trials["control_trial_time_minus_computation"],
                     metric_dict_all_trials["disamb_trial_time_minus_computation"],
@@ -577,7 +597,7 @@ class CompareAssistanceParadigms(object):
         }
         p_star_delta_dict = {
             "time": 0.1,
-            "alpha_val": 0.1,
+            "alpha_val": 0.085,
             "alpha_assistance": 0.1,
             "human_operating_time": 0.01,
             "num_turns": 0.1,
@@ -655,7 +675,7 @@ class CompareAssistanceParadigms(object):
             plt.ylabel("Total Trial Time (s)", fontsize=font_size)
         elif metric == "mode_switches":
             plt.ylabel("Number of Mode Switches Per Trial", fontsize=font_size)
-            plt.ylim(0, 25)
+            plt.ylim(0, 11)
         elif metric == "corrections":
             plt.ylabel("Average Intervention Counts", fontsize=font_size)
         elif metric == "success":
@@ -664,12 +684,13 @@ class CompareAssistanceParadigms(object):
             plt.ylabel("Operating Time Per Trial for Humans (s)", fontsize=font_size)
         elif metric == "num_turns":
             plt.ylabel("Number of Human Turns Per Trial", fontsize=font_size)
+            plt.ylim(0.0, 12.0)
         elif metric == "alpha_val":
             plt.ylabel("Strength of Autonomy Assistance", fontsize=font_size)
-            plt.ylim(0.0, 1.0)
+            plt.ylim(0.0, 0.9)
         elif metric == "alpha_assistance":
             plt.ylabel("Autonomy Assistance Engagement (%)", fontsize=font_size)
-            plt.ylim(0.0, 100.0)
+            plt.ylim(0.0, 85.0)
         elif metric == "ratio_of_work":
             plt.ylabel("Normalized Human Operating Time Per Trial", fontsize=font_size)
             plt.ylim(0.6, 1.1)

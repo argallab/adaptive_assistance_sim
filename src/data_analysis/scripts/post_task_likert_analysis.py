@@ -58,7 +58,8 @@ class PostTaskLikertAnalysis(object):
 
         # self.question_num = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q7', 'Q8', 'Q9', 'Q10', 'Q11', 'Q13', 'Q14']
         # self.question_num = ['Q1', 'Q2', 'Q3', 'Q4', 'Q9', 'Q10', 'Q11']
-        self.question_num = ["Q3", "Q4", "Q5", "Q56", "Q7"]
+        # self.question_num = ["Q3", "Q4", "Q5", "Q56", "Q7"]
+        self.question_num = ["Q3", "Q4", "Q7", "Q10"]
 
         self.question_text = self.df.loc[0, self.question_num]  # first row is questions save as array
         for i in range(len(self.question_text)):
@@ -190,26 +191,27 @@ class PostTaskLikertAnalysis(object):
 
         df["question"] = df["question"].replace(
             "After HAL's turn, HAL was able to figure out where I wanted to go much more easily",
-            "Autonomy was able to figure out when \n I wanted to go more easily after its turn.",
+            "Autonomy was able to figure out where \n I wanted to go more easily after its turn.",
         )
 
         df["question"] = df["question"].replace(
             "HAL helped me move the robot towards the desired goal more effectively after HAL's turn.",
             "Autonomy helped me move the robot towards \n the desired goal more effectively after its turn.",
         )
-        df["question"] = df["question"].replace(
-            "It was much easier to move towards the desired goal after the HAL's turn",
-            "It was much easier to move towards the \n desired goal after the autonomy's turn",
-        )
-        df["question"] = df["question"].replace(
-            "I did not have to perform too many mode switches after the robot's turn.",
-            "I did not have to perform too many mode \n switches after the autonomy's turn.",
-        )
+        # df["question"] = df["question"].replace(
+        #     "It was much easier to move towards the desired goal after the HAL's turn",
+        #     "It was much easier to move towards the \n desired goal after the autonomy's turn",
+        # )
+        # df["question"] = df["question"].replace(
+        #     "I did not have to perform too many mode switches after the robot's turn.",
+        #     "I did not have to perform too many mode \n switches after the autonomy's turn.",
+        # )
         df["question"] = df["question"].replace(
             "HAL's assistance helped me complete the task more efficiently.",
             "Autonomy's assistance helped me complete \n the task more efficiently.",
         )
         ax = sns.barplot(x="score", y="question", hue="condition", data=df)
+        ax = sns.swarmplot(x=df["score"], y=df["question"], color=".4")
 
         font_size = 12
         x_pos = list(self.label_to_score.values())
