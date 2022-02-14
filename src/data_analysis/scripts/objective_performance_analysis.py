@@ -465,7 +465,7 @@ class CompareAssistanceParadigms(object):
         return df
 
     def data_analysis(self):
-        for metric in ["alpha_assistance"]:
+        for metric in ["num_turns"]:
             metric_dict_all_trials = self.group_per_metric(metric)
             print(
                 "SUCCESS CONTROL DISMAB",
@@ -622,9 +622,13 @@ class CompareAssistanceParadigms(object):
         sns.set_palette("colorblind")
 
         # ax = sns.barplot(x=df["condition"], y=df[metric], data=df)
+        # import IPython
 
-        ax = sns.boxplot(x=df["condition"], y=df[metric])
-        ax = sns.swarmplot(x=df["condition"], y=df[metric], color=".4")
+        # IPython.embed(banner1="check")
+
+        # ax = sns.boxplot(x=df["condition"], y=df[metric])
+        # ax = sns.swarmplot(x=df["condition"], y=df[metric], color=".4")
+        ax = sns.violinplot(x=df["condition"], y=df[metric])
         font_size = font_size_dict[metric]
         ax.tick_params(labelsize=font_size)
 
