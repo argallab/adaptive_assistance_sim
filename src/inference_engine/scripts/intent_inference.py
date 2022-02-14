@@ -48,6 +48,9 @@ class IntentInference(object):
 
         self.p_g_given_phm = np.array([1.0 / self.num_goals] * self.num_goals, dtype=np.float32)
 
+    def reset_belief(self):
+        self.p_g_given_phm = np.array([1.0 / self.num_goals] * self.num_goals, dtype=np.float32)
+
     def perform_inference(self, inference_info_dict):
         self.compute_ii_recursive_bayes_interface_level(inference_info_dict)
 

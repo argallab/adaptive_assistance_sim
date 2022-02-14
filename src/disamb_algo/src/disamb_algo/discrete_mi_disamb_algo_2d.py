@@ -126,7 +126,7 @@ class DiscreteMIDisambAlgo2D(object):
         self._compute_mi(prior, states_in_local_spatial_window, continuous_positions_of_local_spatial_window)
         # # pick argmax among this list
         max_disamb_state = self._max_disambiguating_state()
-        return max_disamb_state
+        return max_disamb_state, states_in_local_spatial_window, continuous_positions_of_local_spatial_window
 
     def _max_disambiguating_state(self):
         rewards = self.avg_total_reward_for_valid_states.values()
@@ -147,7 +147,7 @@ class DiscreteMIDisambAlgo2D(object):
 
         prior = prior / np.sum(prior)  # normalizing to make sure random choice works #todo maybe add some minor noise
         weighted_mean_position_of_all_goals = np.average(np.array(self.goal_positions), axis=0, weights=prior)
-        print("WEIGHTED MEAN ", prior, weighted_mean_position_of_all_goals, self.goal_positions)
+        # print("WEIGHTED MEAN ", prior, weighted_mean_position_of_all_goals, self.goal_positions)
 
         for i, (vs, vs_continuous) in enumerate(
             zip(states_for_disamb_computation, continuous_positions_of_local_spatial_window)
@@ -259,7 +259,7 @@ class DiscreteMIDisambAlgo2D(object):
                     states_in_local_spatial_window.append(vs_mode)
                     continuous_positions_of_local_spatial_window.append(vs_continuous)
 
-        print("LOCAL WINDOW ", states_in_local_spatial_window)
+        # print("LOCAL WINDOW ", states_in_local_spatial_window)
 
         assert len(states_in_local_spatial_window) > 0, current_state
         return states_in_local_spatial_window, continuous_positions_of_local_spatial_window
