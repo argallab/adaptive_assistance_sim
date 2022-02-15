@@ -40,8 +40,8 @@ NUM_GOALS = 3
 OCCUPANCY_LEVEL = 0.0
 MAX_PATCHES = 4
 
-GRID_WIDTH = 15
-GRID_HEIGHT = 30
+GRID_WIDTH = 10
+GRID_HEIGHT = 20
 ENTROPY_THRESHOLD = 0.65
 SPATIAL_WINDOW_HALF_LENGTH = 3
 
@@ -308,7 +308,7 @@ def _create_world(num_goals):
     env_params["all_mdp_env_params"] = mdp_env_params
     env_params["robot_type"] = CartesianRobotType.R2
     env_params["mode_set_type"] = ModeSetType.OneD
-    env_params["spatial_window_half_length"] = 3
+    env_params["spatial_window_half_length"] = 2
     env_params["phi_given_a_noise"] = 0.000
     env_params["phm_given_phi_noise"] = 0.000
     env_params["kl_coeff"] = 1.0
@@ -370,10 +370,17 @@ def validate_disamb_metric():
     PHI_SPARSE_LEVEL_HUMAN = 0.00
     PHM_SPARSE_LEVEL_HUMAN = 0.00
 
-    reps = 20
-    num_trials = reps * 5
+    reps = 10
+
     percentage_list = []
-    num_goals_list = [3] * reps + [5] * reps + [8] * reps + [11] * reps + [14] * reps
+    num_goals_ind = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30]
+    num_trials = reps * len(num_goals_ind)
+    num_goals_list = []
+    for n in num_goals_ind:
+        num_goals_list.extend([n] * reps)
+
+    # num_goals_list = [3] * reps + [5] * reps + [8] * reps + [11] * reps + [14] * reps
+
     metrics_for_goals = collections.OrderedDict()
     for trial in range(num_trials):
         num_goals = num_goals_list[trial]
@@ -387,114 +394,119 @@ def validate_disamb_metric():
             convert_discrete_state_to_continuous_position(s, mdp_env_params["cell_size"], world_bounds)
             for s in states_for_disamb_computation
         ]
-        disamb_algo._compute_mi(prior, states_for_disamb_computation, continuous_positions_of_local_spatial_window)
+        # disamb_algo._compute_mi(prior, states_for_disamb_computation, continuous_positions_of_local_spatial_window)
 
         # visualize_metrics_map(disamb_algo.avg_total_reward_for_valid_states, mdp_list[0], title="REWARD")
         disamb_match_ctr = 0
         st_ctr = 0
-        # for s in states_for_disamb_computation:  # for all states
-        #     print("Computing for ", s)
-        #     st_ctr += 1
-        #     # compute local neightbohood for candidate sttaes.
-        #     continuous_position_for_s = convert_discrete_state_to_continuous_position(
-        #         s, mdp_env_params["cell_size"], world_bounds
-        #     )
+        for s in states_for_disamb_computation:  # for all states
+            print("Computing for ", s)
+            st_ctr += 1
+            # compute local neightbohood for candidate sttaes.
+            continuous_position_for_s = convert_discrete_state_to_continuous_position(
+                s, mdp_env_params["cell_size"], world_bounds
+            )
 
-        #     (
-        #         max_disamb_state,
-        #         states_in_local_spatial_window,
-        #         continuous_positions_of_local_spatial_window,
-        #     ) = disamb_algo.get_local_disamb_state(prior, s, continuous_position_for_s)
+            (
+                max_disamb_state,
+                states_in_local_spatial_window,
+                continuous_positions_of_local_spatial_window,
+            ) = disamb_algo.get_local_disamb_state(prior, s, continuous_position_for_s)
 
-        #     ground_truth_s_pg = collections.OrderedDict()
-        #     ground_truth_s_pg_percentage = collections.OrderedDict()
-        #     ground_truth_s_kl = collections.OrderedDict()
-        #     # for each state in neighboring states
-        #     for cs in states_in_local_spatial_window:
-        #         s_disamb_ground_truth_pg = collections.defaultdict(list)
-        #         s_disamb_ground_truth_pg_percentage = collections.defaultdict(list)
-        #         s_disamb_ground_truth_kl = collections.defaultdict(list)
-        #         # apply all actions available.
-        #         for a in mdp_list[0].task_level_actions.keys():
-        #             ii_engine.reset_belief()
-        #             start_belief = copy.deepcopy(ii_engine.get_current_p_g_given_phm())
-        #             # sampled corrupted interface level action (a) corresponding to task-level action, could be None
-        #             phi = sample_phi_given_a_human(a, current_mode=cs[-1])
-        #             # corrupted interface level action, could be None
-        #             phm = sample_phm_given_phi_human(phi)
-        #             # package all necessary information for inference engine
-        #             inference_info_dict = {}
-        #             inference_info_dict["phm"] = phm
-        #             inference_info_dict["state"] = cs
-        #             ii_engine.perform_inference(inference_info_dict)
-        #             current_belief = ii_engine.get_current_p_g_given_phm()
+            ground_truth_s_pg = collections.OrderedDict()
+            ground_truth_s_pg_percentage = collections.OrderedDict()
+            ground_truth_s_kl = collections.OrderedDict()
+            # for each state in neighboring states
+            for cs in states_in_local_spatial_window:
+                s_disamb_ground_truth_pg = collections.defaultdict(list)
+                s_disamb_ground_truth_pg_percentage = collections.defaultdict(list)
+                s_disamb_ground_truth_kl = collections.defaultdict(list)
+                # apply all actions available.
+                for a in mdp_list[0].task_level_actions.keys():
+                    ii_engine.reset_belief()
+                    start_belief = copy.deepcopy(ii_engine.get_current_p_g_given_phm())
+                    # sampled corrupted interface level action (a) corresponding to task-level action, could be None
+                    phi = sample_phi_given_a_human(a, current_mode=cs[-1])
+                    # corrupted interface level action, could be None
+                    phm = sample_phm_given_phi_human(phi)
+                    # package all necessary information for inference engine
+                    inference_info_dict = {}
+                    inference_info_dict["phm"] = phm
+                    inference_info_dict["state"] = cs
+                    ii_engine.perform_inference(inference_info_dict)
+                    current_belief = ii_engine.get_current_p_g_given_phm()
 
-        #             sorted_belief = sorted(current_belief)
-        #             # difference between max and second max probabilities.
-        #             s_disamb_ground_truth_pg[a] = sorted_belief[-1] - sorted_belief[-2]
-        #             s_disamb_ground_truth_pg_percentage[a] = 100.0 * (s_disamb_ground_truth_pg[a] / start_belief[0])
-        #             s_disamb_ground_truth_kl[a] = np.sum(special.rel_entr(current_belief, start_belief))
+                    sorted_belief = sorted(current_belief)
+                    # difference between max and second max probabilities.
+                    s_disamb_ground_truth_pg[a] = sorted_belief[-1] - sorted_belief[-2]
+                    # s_disamb_ground_truth_pg_percentage[a] = 100.0 * (s_disamb_ground_truth_pg[a] / start_belief[0])
+                    # s_disamb_ground_truth_kl[a] = np.sum(special.rel_entr(current_belief, start_belief))
 
-        #             # compute information gain between posterior and prior
+                    # compute information gain between posterior and prior
 
-        #         # compute average probability gain for each state
-        #         ground_truth_s_pg[cs] = np.mean(np.array(list(s_disamb_ground_truth_pg.values())))
-        #         ground_truth_s_pg_percentage[cs] = np.mean(np.array(list(s_disamb_ground_truth_pg_percentage.values())))
-        #         ground_truth_s_kl[cs] = np.mean(np.array(list(s_disamb_ground_truth_kl.values())))
+                # compute average probability gain for each state
+                ground_truth_s_pg[cs] = np.mean(np.array(list(s_disamb_ground_truth_pg.values())))
+                # ground_truth_s_pg_percentage[cs] = np.mean(np.array(list(s_disamb_ground_truth_pg_percentage.values())))
+                # ground_truth_s_kl[cs] = np.mean(np.array(list(s_disamb_ground_truth_kl.values())))
 
-        #     ground_truth_amax = list(ground_truth_s_pg.keys())[np.argmax(ground_truth_s_pg.values())]
+            ground_truth_amax = list(ground_truth_s_pg.keys())[np.argmax(ground_truth_s_pg.values())]
 
-        #     if ground_truth_amax == max_disamb_state:
-        #         disamb_match_ctr += 1
+            if ground_truth_amax == max_disamb_state:
+                disamb_match_ctr += 1
 
-        # match_percentage = (100.0 * disamb_match_ctr) / st_ctr
-        # percentage_list.append({"match_percentage": match_percentage, "all_goals": mdp_env_params["all_goals"]})
+        match_percentage = (100.0 * disamb_match_ctr) / st_ctr
+        print("           ")
+        print("MATCH PERCENTAGE ", num_goals, match_percentage)
+        print("           ")
+        percentage_list.append(
+            {"num_goals": num_goals, "match_percentage": match_percentage, "all_goals": mdp_env_params["all_goals"]}
+        )
         # for each of the candidate states. compute the average prob gain for all actions.
 
-        ground_truth_s_pg = collections.OrderedDict()
-        ground_truth_s_pg_percentage = collections.OrderedDict()
-        ground_truth_s_kl = collections.OrderedDict()
-        for s in states_for_disamb_computation:
-            print("Comuting for ", s)
-            s_disamb_ground_truth_pg = collections.defaultdict(list)
-            s_disamb_ground_truth_pg_percentage = collections.defaultdict(list)
-            s_disamb_ground_truth_kl = collections.defaultdict(list)
+        # ground_truth_s_pg = collections.OrderedDict()
+        # ground_truth_s_pg_percentage = collections.OrderedDict()
+        # ground_truth_s_kl = collections.OrderedDict()
+        # for s in states_for_disamb_computation:
+        #     print("Comuting for ", s)
+        #     s_disamb_ground_truth_pg = collections.defaultdict(list)
+        #     s_disamb_ground_truth_pg_percentage = collections.defaultdict(list)
+        #     s_disamb_ground_truth_kl = collections.defaultdict(list)
 
-            for a in mdp_list[0].task_level_actions.keys():
-                ii_engine.reset_belief()
-                start_belief = copy.deepcopy(ii_engine.get_current_p_g_given_phm())
-                # print("START BeLIEF", start_belief)
-                # sampled corrupted interface level action (a) corresponding to task-level action, could be None
-                phi = sample_phi_given_a_human(a, current_mode=s[-1])
-                # corrupted interface level action, could be None
-                phm = sample_phm_given_phi_human(phi)
-                # package all necessary information for inference engine
-                inference_info_dict = {}
-                inference_info_dict["phm"] = phm
-                inference_info_dict["state"] = s
-                ii_engine.perform_inference(inference_info_dict)
-                current_belief = ii_engine.get_current_p_g_given_phm()
-                print("CURRENT_ BLEIF", current_belief, start_belief)
-                # print(" ")
-                # print("Current state, a_sampled, phi, phm, belief", s, a, phi, phm, start_belief, current_belief)
+        #     for a in mdp_list[0].task_level_actions.keys():
+        #         ii_engine.reset_belief()
+        #         start_belief = copy.deepcopy(ii_engine.get_current_p_g_given_phm())
+        #         # print("START BeLIEF", start_belief)
+        #         # sampled corrupted interface level action (a) corresponding to task-level action, could be None
+        #         phi = sample_phi_given_a_human(a, current_mode=s[-1])
+        #         # corrupted interface level action, could be None
+        #         phm = sample_phm_given_phi_human(phi)
+        #         # package all necessary information for inference engine
+        #         inference_info_dict = {}
+        #         inference_info_dict["phm"] = phm
+        #         inference_info_dict["state"] = s
+        #         ii_engine.perform_inference(inference_info_dict)
+        #         current_belief = ii_engine.get_current_p_g_given_phm()
+        #         print("CURRENT_ BLEIF", current_belief, start_belief)
+        #         # print(" ")
+        #         # print("Current state, a_sampled, phi, phm, belief", s, a, phi, phm, start_belief, current_belief)
 
-                sorted_belief = sorted(current_belief)
-                # difference between max and second max probabilities.
-                s_disamb_ground_truth_pg[a] = sorted_belief[-1] - sorted_belief[-2]
-                s_disamb_ground_truth_pg_percentage[a] = 100.0 * (s_disamb_ground_truth_pg[a] / start_belief[0])
-                s_disamb_ground_truth_kl[a] = np.sum(special.rel_entr(current_belief, start_belief))
+        #         sorted_belief = sorted(current_belief)
+        #         # difference between max and second max probabilities.
+        #         s_disamb_ground_truth_pg[a] = sorted_belief[-1] - sorted_belief[-2]
+        #         s_disamb_ground_truth_pg_percentage[a] = 100.0 * (s_disamb_ground_truth_pg[a] / start_belief[0])
+        #         s_disamb_ground_truth_kl[a] = np.sum(special.rel_entr(current_belief, start_belief))
 
-            ground_truth_s_pg[s] = np.mean(np.array(list(s_disamb_ground_truth_pg.values())))
-            ground_truth_s_pg_percentage[s] = np.mean(np.array(list(s_disamb_ground_truth_pg_percentage.values())))
-            ground_truth_s_kl[s] = np.mean(np.array(list(s_disamb_ground_truth_kl.values())))
+        #     ground_truth_s_pg[s] = np.mean(np.array(list(s_disamb_ground_truth_pg.values())))
+        #     ground_truth_s_pg_percentage[s] = np.mean(np.array(list(s_disamb_ground_truth_pg_percentage.values())))
+        #     ground_truth_s_kl[s] = np.mean(np.array(list(s_disamb_ground_truth_kl.values())))
 
-        metrics_for_goals[str(num_goals) + "_trial_" + str(trial)] = collections.OrderedDict()
-        metrics_for_goals[str(num_goals) + "_trial_" + str(trial)]["pg"] = ground_truth_s_pg
-        metrics_for_goals[str(num_goals) + "_trial_" + str(trial)]["pg_percentage"] = ground_truth_s_pg_percentage
-        metrics_for_goals[str(num_goals) + "_trial_" + str(trial)]["kl"] = ground_truth_s_kl
-        metrics_for_goals[str(num_goals) + "_trial_" + str(trial)][
-            "disamb"
-        ] = disamb_algo.avg_total_reward_for_valid_states
+        # metrics_for_goals[str(num_goals) + "_trial_" + str(trial)] = collections.OrderedDict()
+        # metrics_for_goals[str(num_goals) + "_trial_" + str(trial)]["pg"] = ground_truth_s_pg
+        # metrics_for_goals[str(num_goals) + "_trial_" + str(trial)]["pg_percentage"] = ground_truth_s_pg_percentage
+        # metrics_for_goals[str(num_goals) + "_trial_" + str(trial)]["kl"] = ground_truth_s_kl
+        # metrics_for_goals[str(num_goals) + "_trial_" + str(trial)][
+        #     "disamb"
+        # ] = disamb_algo.avg_total_reward_for_valid_states
 
     import IPython
 
